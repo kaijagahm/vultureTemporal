@@ -6,11 +6,14 @@ editor: visual
 
 ```{r}
 #| include: false
-library(tidyverse)
-library(sf)
-library(vultureUtils)
+library(tidyverse) # for data wrangling
+library(sf) # for spatial manipulation (necessary as a precursor to getting edgelists)
+library(vultureUtils) # for getting edgelists
+library(igraph) # for working with networks
+library(tidygraph) # for working with networks
 library(future) # for parallel processing
 library(furrr) # for parallel processing
+library(here) # for tidy file paths
 ```
 
 ## Prepare a subset of data
@@ -18,7 +21,7 @@ library(furrr) # for parallel processing
 ```{r}
 #| eval: false
 # Load data
-load("data/fromMvmtSoc/downsampled_10min_forSocial.Rda") # produced by the dataPrep script in MvmtSoc project
+load(here("data/fromMvmtSoc/downsampled_10min_forSocial.Rda")) # produced by the dataPrep script in MvmtSoc project
 
 # Convert to SF
 sfdata <- map(downsampled_10min_forSocial, ~st_as_sf(.x, coords = c("location_long", "location_lat"), crs = "WGS84", remove = F))
@@ -33,7 +36,7 @@ sfdata <- purrr::list_rbind(sfdata) %>%
 summer23 <- sfdata %>%
   filter(seasonUnique == "2023_summer")
 
-save(summer23, file = "data/summer23.Rda")
+save(summer23, file = here("data/summer23.Rda"))
 rm(sfdata)
 ```
 
@@ -41,9 +44,9 @@ rm(sfdata)
 
 ```{r}
 #| include: false
-load("data/summer23.Rda")
-load("data/roosts.Rda")
-roostPolygons <- sf::st_read("data/raw/roosts50_kde95_cutOffRegion.kml")
+load(here("data/summer23.Rda"))
+load(here("data/roosts.Rda"))
+roostPolygons <- sf::st_read(here("data/raw/roosts50_kde95_cutOffRegion.kml"))
 dim(summer23)
 ```
 
@@ -92,7 +95,7 @@ data_cut <- map(data_cut, ~.x %>%
 length(data_cut) # 5 elements, one for each of the time windows
 map_dbl(data_cut, length) # each element has a different number of elements--122 for the 1-day intervals, 25 for the 5-day intervals, etc. etc.
 
-save(data_cut, file = "data/data_cut.Rda")
+save(data_cut, file = here("data/data_cut.Rda"))
 ```
 
 Now we we need to do the same cuts for the roost data.
@@ -110,7 +113,7 @@ roosts_cut <- map(roosts_cut, ~.x %>%
                     group_split() %>%
                     map(., ~sf::st_as_sf(.x, coords = c("location_long", "location_lat"), crs = "WGS84", remove = F)))
 
-save(roosts_cut, file = "data/roosts_cut.Rda")
+save(roosts_cut, file = here("data/roosts_cut.Rda"))
 ```
 
 ## Get flight, feeding, and roosting edges for each time window
@@ -183,6 +186,7 @@ for(i in 1:length(timewindows)){
   # In order to fix this, we will need access to the sri objects to check (result of the above) as well as the original data
   cat("Fixing results for time window", timewindows[i], "\n")
   
+  # Define the current datasets (both sri and original data objects)
   sri_flight <- sris_flight[[i]]
   sri_feeding <- sris_feeding[[i]]
   sri_roosting <- sris_roosting[[i]]
@@ -190,6 +194,7 @@ for(i in 1:length(timewindows)){
   data_feeding <- data_cut[[i]]
   data_roosting <- roosts_cut[[i]]
   
+  # For each sri output, check whether it's blank, and if so, fill it in with an empty data frame (i.e. "fix" it). If it's not blank, just leave it as is.
   flight_sris_fixed <- map2(sri_flight, data_flight, ~{
     if(nrow(.x) > 0){out <- .x}
     else{out <- fix(.y)}
@@ -220,11 +225,15 @@ for(i in 1:length(timewindows)){
 ## Make the network graphs
 
 ```{r}
+# Create lists to store the network graphs
 graphs_flight <- vector(mode = "list", length = length(timewindows))
 graphs_feeding <- vector(mode = "list", length = length(timewindows))
 graphs_roosting <- vector(mode = "list", length = length(timewindows))
+
+# Set up a "plan" to run this code in parallel, so it will go much faster
 future::plan(future::multisession, workers = 10)
 
+# For each time window, loop through the edge lists and turn them into graphs
 for(i in 1:length(timewindows)){
   flight <- sris_flight[[i]]
   feeding <- sris_feeding[[i]]
@@ -234,101 +243,119 @@ for(i in 1:length(timewindows)){
   feedinggraphs <- furrr::future_map(feeding, ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T),
                                      .progress = T)
   roostinggraphs <- furrr::future_map(roosting, ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T), .progress = T)
+  
+  # Fill the lists with the created graphs
   graphs_flight[[i]] <- flightgraphs
   graphs_feeding[[i]] <- feedinggraphs
   graphs_roosting[[i]] <- roostinggraphs
+  
+  # Clean up memory
   rm(flightgraphs)
   rm(feedinggraphs)
   rm(roostinggraphs)
 }
 
-save(graphs_flight, file = "data/graphs_flight.Rda")
-save(graphs_feeding, file = "data/graphs_feeding.Rda")
-save(graphs_roosting, file = "data/graphs_roosting.Rda")
+# Save the graphs to files
+save(graphs_flight, file = here("data/graphs_flight.Rda"))
+save(graphs_feeding, file = here("data/graphs_feeding.Rda"))
+save(graphs_roosting, file = here("data/graphs_roosting.Rda"))
 ```
 
 ## Calculate individual-level metrics
 
-XXXX start here
+In order to properly label the metrics in the data frame, we need to know which interval they're associated with. Let's retrieve the interval names from the original data.
+
+```{r}
+brks <- map(data_cut, ~map_chr(.x, ~as.character(.x$int[1])))
+brks_roosts <- map(roosts_cut, ~map_chr(.x, ~as.character(.x$int[1])))
+identical(brks, brks_roosts) # FALSE--this is a problem. Must mean we were missing some roost data. #XXX investigate...
+```
 
 ```{r}
 # Function to get degree and strength
 getmetrics <- function(graph, interval, type, days){
-  metrics <- data.frame(degree = igraph::degree(graph),
+  if(length(graph) > 0){
+      metrics <- data.frame(degree = igraph::degree(graph),
                     strength = igraph::strength(graph),
                     Nili_id = names(igraph::degree(graph)),
                     int = interval,
                     n = length(V(graph)),
                     type = type,
                     ndays = days)
+  }else{
+    metrics <- data.frame(degree = NA, strength = NA, 
+                          Nili_id = NA, int = interval, 
+                          n = 0, type = type, ndays = days)
+  }
+
   return(metrics)
 }
 
 # Initialize lists to hold the metrics
-metrics_flight_indiv <- vector(mode = "list", length = length(ndays))
-metrics_feeding_indiv <- vector(mode = "list", length = length(ndays))
-metrics_roosting_indiv <- vector(mode = "list", length = length(ndays))
+metrics_flight_indiv <- vector(mode = "list", length = length(timewindows))
+metrics_feeding_indiv <- vector(mode = "list", length = length(timewindows))
+metrics_roosting_indiv <- vector(mode = "list", length = length(timewindows))
 
+# Calculate metrics for each graph, using the getmetrics function defined above.
 for(i in 1:length(timewindows)){
-  fl <- graphs_flight[[i]]
-  fe <- graphs_feeding[[i]]
-  ro <- graphs_roosting[[i]]
-  
-  metrics_flight_indiv[[i]] <- map2(fl, )
+  metrics_flight_indiv[[i]] <- map2(graphs_flight[[i]], brks[[i]], ~{
+    getmetrics(graph = .x, interval = .y, type = "flight", days = i)
+  })
+  metrics_feeding_indiv[[i]] <- map2(graphs_feeding[[i]], brks[[i]], ~{
+    getmetrics(.x, .y, "feeding", i)
+  })
+  metrics_roosting_indiv[[i]] <- map2(graphs_roosting[[i]], brks_roosts[[i]], ~{
+    getmetrics(.x, .y, "roosting", i)
+  })
 }
 
-for(i in 1:length(ndays)){
+# Smoosh the lists down into data frames instead (so now, instead of a list of lists, we will have a list of data frames)
+metrics_flight_indiv_df <- map(metrics_flight_indiv, ~purrr::list_rbind(.x))
+metrics_feeding_indiv_df <- map(metrics_feeding_indiv, ~purrr::list_rbind(.x))
+metrics_roosting_indiv_df <- map(metrics_roosting_indiv, ~purrr::list_rbind(.x))
 
-  
-  metrics_flight_indiv[[i]] <- map2(fl, brks[[i]], ~{
-    if(length(.x) > 0){
-      out <- data.frame(degree = igraph::degree(.x),
-                        strength = igraph::strength(.x),
-                        Nili_id = names(igraph::degree(.x)),
-                        int = .y,
-                        n = length(V(.x)),
-                        type = "flight",
-                        ndays = ndays[i])
-    }else{
-      out <- data.frame(degree = NA, strength = NA, Nili_id = NA, int = .y, 
-                        n = 0, type = "flight", ndays = ndays[i])
-    }
-    return(out)
-  })
-  metrics_feeding_indiv[[i]] <- map2(fe, brks[[i]], ~{
-    if(length(.x) > 0){
-      out <- data.frame(degree = igraph::degree(.x),
-                        strength = igraph::strength(.x),
-                        Nili_id = names(igraph::degree(.x)),
-                        int = .y,
-                        n = length(V(.x)),
-                        type = "feeding",
-                        ndays = ndays[i])
-    }else{
-      out <- data.frame(degree = NA, strength = NA, Nili_id = NA, int = .y, 
-                        n = 0, type = "feeding", ndays = ndays[i])
-    }
-    return(out)
-  })
-  metrics_roosting_indiv[[i]] <- map2(ro, brks_roosts[[i]], ~{
-    if(length(.x) > 0){
-      out <- data.frame(degree = igraph::degree(.x),
-                        strength = igraph::strength(.x),
-                        Nili_id = names(igraph::degree(.x)),
-                        int = .y,
-                        n = length(V(.x)),
-                        type = "roosting",
-                        ndays = ndays[i])
-    }else{
-      out <- data.frame(degree = NA, strength = NA, Nili_id = NA, int = .y, 
-                        n = 0, type = "roosting", ndays = ndays[i])
-    }
-    return(out)
-  })
-  rm(fl)
-  rm(fe)
-  rm(ro)
-}
-
-
+# smoosh the lists further into data frames (one data frame for each social situation), and bind all the situations together into a single data frame. We can do this because we specified "type" in the for loop above, so all the data is already labeled.
+metrics_indiv <- bind_rows(purrr::list_rbind(metrics_flight_indiv_df), 
+                     purrr::list_rbind(metrics_feeding_indiv_df), 
+                     purrr::list_rbind(metrics_roosting_indiv_df))
+row.names(metrics_indiv) <- NULL
+save(metrics_indiv, file = here("data/metrics_indiv.Rda"))
 ```
+
+## Attach metrics to graphs
+
+I'm going to use the structure called `tbl_graph` from the `tidygraph` package, because it makes attaching node or edge characteristics much easier than igraph (using the tidyverse framework).
+
+```{r}
+# Create lists to store the tbl_graph objects
+graphs_flight_tbl <- vector(mode = "list", length = length(timewindows))
+graphs_feeding_tbl <- vector(mode = "list", length = length(timewindows))
+graphs_roosting_tbl <- vector(mode = "list", length = length(timewindows))
+
+# Fill the lists: convert each graph to a tbl_graph, and then join the metrics calculated above.
+for(i in 1:length(timewindows)){
+  fl_tbl <- map(graphs_flight[[i]], ~as_tbl_graph(.x))
+  fe_tbl <- map(graphs_feeding[[i]], ~as_tbl_graph(.x))
+  ro_tbl <- map(graphs_roosting[[i]], ~as_tbl_graph(.x))
+  
+  graphs_flight_tbl[[i]] <- map2(fl_tbl, metrics_flight_indiv[[i]], ~{
+    .x %>% activate(nodes) %>%
+      left_join(.y, by = c("name" = "Nili_id"))
+  })
+  graphs_feeding_tbl[[i]] <- map2(fe_tbl, metrics_feeding_indiv[[i]], ~{
+    .x %>% activate(nodes) %>%
+      left_join(.y, by = c("name" = "Nili_id"))
+  })
+  graphs_roosting_tbl[[i]] <- map2(ro_tbl, metrics_roosting_indiv[[i]], ~{
+    .x %>% activate(nodes) %>%
+      left_join(.y, by = c("name" = "Nili_id"))
+  })
+}
+
+# Save the tbl_graphs with attached metrics to files
+save(graphs_flight_tbl, file = here("data/graphs_flight_tbl.Rda"))
+save(graphs_feeding_tbl, file = here("data/graphs_feeding_tbl.Rda"))
+save(graphs_roosting_tbl, file = here("data/graphs_roosting_tbl.Rda"))
+```
+
+## Make some visualizations
