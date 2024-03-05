@@ -1,0 +1,334 @@
+---
+title: "temporal"
+format: html
+editor: visual
+---
+
+```{r}
+#| include: false
+library(tidyverse)
+library(sf)
+library(vultureUtils)
+library(future) # for parallel processing
+library(furrr) # for parallel processing
+```
+
+## Prepare a subset of data
+
+```{r}
+#| eval: false
+# Load data
+load("data/fromMvmtSoc/downsampled_10min_forSocial.Rda") # produced by the dataPrep script in MvmtSoc project
+
+# Convert to SF
+sfdata <- map(downsampled_10min_forSocial, ~st_as_sf(.x, coords = c("location_long", "location_lat"), crs = "WGS84", remove = F))
+
+rm(downsampled_10min_forSocial)
+
+# Put all the seasons together and remove the columns we don't need
+sfdata <- purrr::list_rbind(sfdata) %>%
+  select(-c(tag_id, sensor_type_id, acceleration_raw_x, acceleration_raw_y, acceleration_raw_z, barometric_height, battery_charge_percent, battery_charging_current, external_temperature, gps_hdop, gps_satellite_count, gps_time_to_fix, import_marked_outlier, light_level, magnetic_field_raw_x, magnetic_field_raw_y, magnetic_field_raw_z, ornitela_transmission_protocol, tag_voltage, update_ts, visible, deployment_id, event_id, sensor_type, tag_local_identifier, location_long.1, location_lat.1, optional, sensor, earliest_date_born, exact_date_of_birth, group_id, individual_id, latest_date_born, local_identifier, marker_id, mates, mortality_date, mortality_latitude, mortality_type, nick_name, offspring, parents, ring_id, siblings, taxon_canonical_name, taxon_detail, number_of_events, number_of_deployments))
+
+# For our own sanity, let's just work with a single season: summer 2023
+summer23 <- sfdata %>%
+  filter(seasonUnique == "2023_summer")
+
+save(summer23, file = "data/summer23.Rda")
+rm(sfdata)
+```
+
+## Load the Summer 2023 data subset
+
+```{r}
+#| include: false
+load("data/summer23.Rda")
+load("data/roosts.Rda")
+roostPolygons <- sf::st_read("data/raw/roosts50_kde95_cutOffRegion.kml")
+dim(summer23)
+```
+
+## Cut Summer 2023 into different time windows
+
+### Define the time windows
+
+To test how the networks behave over different time intervals, we can prepare a subset of data (summer 2023) cut into different intervals. E.g. 1 day, 5 days, 10 days, 25 days, 50 days.
+
+```{r}
+# What are the different time windows we want to test?
+timewindows <- c(1, 5, 10, 25, 50)
+
+# A function for cutting a vector of dates (`vec`) into `days`-day intervals
+cutdates <- function(vec, days){
+  # get min and max dates in the vector
+  min <- min(vec)
+  max <- max(vec)
+  
+  # determine how many cutpoints we'll need
+  ncutpoints <- ceiling(as.numeric(max-min)/days) + 1
+  
+  # create the vector of cutpoints
+  cutpoints <- seq(from = min, by = days, length.out = ncutpoints)
+  
+  # cut the dates according to the cutpoints. Intervals will have the format [low, high).
+  out <- cut(vec, breaks = cutpoints, include.lowest = T, right = F)
+  return(out)
+}
+
+# Cut the data into the various intervals
+data_cut <- map(timewindows, ~{
+  summer23 %>%
+    mutate(int = cutdates(dateOnly, .x))
+})
+
+length(data_cut) # should be same length as `timewindows` vector
+
+# Okay, now we have the data classified into intervals, time to split each one into a list.
+# There is an annoying thing here: when you have an sf object and you run group_by() %>% group_split() on it, the resulting sub-objects do not keep their sf status. They turn into regular data frames. Grrrrr! So I had to add a step to turn each of them back into an sf object.
+data_cut <- map(data_cut, ~.x %>% 
+                  group_by(int) %>% 
+                  group_split() %>%
+                  map(., ~sf::st_as_sf(.x, coords = c("location_long", "location_lat"), crs = "WGS84", remove = F)))
+
+length(data_cut) # 5 elements, one for each of the time windows
+map_dbl(data_cut, length) # each element has a different number of elements--122 for the 1-day intervals, 25 for the 5-day intervals, etc. etc.
+
+save(data_cut, file = "data/data_cut.Rda")
+```
+
+Now we we need to do the same cuts for the roost data.
+
+```{r}
+roosts_summer23 <- roosts[[9]]
+
+roosts_cut <- map(timewindows, ~{
+  roosts_summer23 %>%
+    mutate(int = cutdates(roost_date, .x))
+})
+
+roosts_cut <- map(roosts_cut, ~.x %>% 
+                    group_by(int) %>% 
+                    group_split() %>%
+                    map(., ~sf::st_as_sf(.x, coords = c("location_long", "location_lat"), crs = "WGS84", remove = F)))
+
+save(roosts_cut, file = "data/roosts_cut.Rda")
+```
+
+## Get flight, feeding, and roosting edges for each time window
+
+I am using an unholy combination of for loops and `purrr::map()` here, because I find it easier to understand than nested `map` statements (and nested for loops are slower/not easy to parallelize). But they are doing the same thing.
+
+```{r}
+# Set up a session for parallel computing, with 10 workers (i.e. can run 10 processes in parallel)
+future::plan(future::multisession, workers = 10)
+
+# Initialize lists to hold the outputs of get*Edges.
+sris_flight <- vector(mode = "list", length = length(timewindows))
+sris_feeding <- vector(mode = "list", length = length(timewindows))
+sris_roosting <- vector(mode = "list", length = length(timewindows))
+
+# Run a for loop across all the time windows
+for(i in 1:length(timewindows)){
+  cat("Working on data split into", timewindows[i], "day intervals\n")
+  
+  datalist <- data_cut[[i]]
+  roostlist <- roosts_cut[[i]]
+  cat("Working on flight\n")
+  fl <- suppressWarnings(furrr::future_map(datalist, ~{
+    library(sf) # have to have this here; it's a quirk of future::map().
+    vultureUtils::getFlightEdges(.x, roostPolygons = roostPolygons, distThreshold = 1000, idCol = "Nili_id", return = "sri")
+  }, .progress = T))
+  
+  cat("Working on feeding\n")
+  fe <- suppressWarnings(furrr::future_map(datalist, ~{
+    library(sf) # have to have this here; it's a quirk of future::map().
+    vultureUtils::getFeedingEdges(.x, roostPolygons = roostPolygons, distThreshold = 50, idCol = "Nili_id", return = "sri")
+  }, .progress = T))
+  
+  cat("Working on roosting\n")
+  ro <- suppressWarnings(furrr::future_map(roostlist, ~{
+    library(sf) # have to have this here; it's a quirk of future::map().
+    vultureUtils::getRoostEdges(.x, mode = "polygon",
+                                roostPolygons = roostPolygons,
+                                return = "sri",
+                                latCol = "location_lat",
+                                longCol = "location_long",
+                                idCol = "Nili_id",
+                                dateCol = "roost_date")
+    
+  }, .progress = T))
+  
+  # Save the results to their lists
+  sris_flight[[i]] <- fl
+  sris_feeding[[i]] <- fe
+  sris_roosting[[i]] <- ro
+  
+  # Clean up memory
+  rm(list = c("datalist", "roostlist", "fl", "fe", "ro"))
+  gc()
+}
+
+# Now we have a problem where some of them have length 0 because there were no interactions of that type during the time interval in question. 
+# I want to fill in those with a blank data frame with the same format as the other SRI data frames.
+# Function to create empty SRI data frames:
+fix <- function(data){
+  unique_indivs <- unique(data$Nili_id)
+  sri <- as.data.frame(expand.grid(unique_indivs, unique_indivs)) %>%
+    setNames(c("ID1", "ID2")) %>%
+    mutate(sri = 0) %>%
+    filter(as.character(ID1) < as.character(ID2))
+  return(sri)
+}
+
+for(i in 1:length(timewindows)){
+  # In order to fix this, we will need access to the sri objects to check (result of the above) as well as the original data
+  cat("Fixing results for time window", timewindows[i], "\n")
+  
+  sri_flight <- sris_flight[[i]]
+  sri_feeding <- sris_feeding[[i]]
+  sri_roosting <- sris_roosting[[i]]
+  data_flight <- data_cut[[i]]
+  data_feeding <- data_cut[[i]]
+  data_roosting <- roosts_cut[[i]]
+  
+  flight_sris_fixed <- map2(sri_flight, data_flight, ~{
+    if(nrow(.x) > 0){out <- .x}
+    else{out <- fix(.y)}
+    return(out)
+  })
+  feeding_sris_fixed <- map2(sri_feeding, data_feeding, ~{
+    if(nrow(.x) > 0){out <- .x}
+    else{out <- fix(.y)}
+    return(out)
+  })
+  roosting_sris_fixed <- map2(sri_roosting, data_roosting, ~{
+    if(nrow(.x) > 0){out <- .x}
+    else{out <- fix(.y)}
+    return(out)
+  })
+  
+  # Save the results to their lists (overwriting what was there before)
+  sris_flight[[i]] <- flight_sris_fixed
+  sris_feeding[[i]] <- feeding_sris_fixed
+  sris_roosting[[i]] <- roosting_sris_fixed
+  
+  # Clean up memory
+  rm(list = c("sri_feeding", "sri_flight", "sri_roosting", "data_flight", "data_feeding", "data_roosting"))
+  gc()
+}
+```
+
+## Make the network graphs
+
+```{r}
+graphs_flight <- vector(mode = "list", length = length(timewindows))
+graphs_feeding <- vector(mode = "list", length = length(timewindows))
+graphs_roosting <- vector(mode = "list", length = length(timewindows))
+future::plan(future::multisession, workers = 10)
+
+for(i in 1:length(timewindows)){
+  flight <- sris_flight[[i]]
+  feeding <- sris_feeding[[i]]
+  roosting <- sris_roosting[[i]]
+  flightgraphs <- furrr::future_map(flight, ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T),
+                                    .progress = T)
+  feedinggraphs <- furrr::future_map(feeding, ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T),
+                                     .progress = T)
+  roostinggraphs <- furrr::future_map(roosting, ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T), .progress = T)
+  graphs_flight[[i]] <- flightgraphs
+  graphs_feeding[[i]] <- feedinggraphs
+  graphs_roosting[[i]] <- roostinggraphs
+  rm(flightgraphs)
+  rm(feedinggraphs)
+  rm(roostinggraphs)
+}
+
+save(graphs_flight, file = "data/graphs_flight.Rda")
+save(graphs_feeding, file = "data/graphs_feeding.Rda")
+save(graphs_roosting, file = "data/graphs_roosting.Rda")
+```
+
+## Calculate individual-level metrics
+
+XXXX start here
+
+```{r}
+# Function to get degree and strength
+getmetrics <- function(graph, interval, type, days){
+  metrics <- data.frame(degree = igraph::degree(graph),
+                    strength = igraph::strength(graph),
+                    Nili_id = names(igraph::degree(graph)),
+                    int = interval,
+                    n = length(V(graph)),
+                    type = type,
+                    ndays = days)
+  return(metrics)
+}
+
+# Initialize lists to hold the metrics
+metrics_flight_indiv <- vector(mode = "list", length = length(ndays))
+metrics_feeding_indiv <- vector(mode = "list", length = length(ndays))
+metrics_roosting_indiv <- vector(mode = "list", length = length(ndays))
+
+for(i in 1:length(timewindows)){
+  fl <- graphs_flight[[i]]
+  fe <- graphs_feeding[[i]]
+  ro <- graphs_roosting[[i]]
+  
+  metrics_flight_indiv[[i]] <- map2(fl, )
+}
+
+for(i in 1:length(ndays)){
+
+  
+  metrics_flight_indiv[[i]] <- map2(fl, brks[[i]], ~{
+    if(length(.x) > 0){
+      out <- data.frame(degree = igraph::degree(.x),
+                        strength = igraph::strength(.x),
+                        Nili_id = names(igraph::degree(.x)),
+                        int = .y,
+                        n = length(V(.x)),
+                        type = "flight",
+                        ndays = ndays[i])
+    }else{
+      out <- data.frame(degree = NA, strength = NA, Nili_id = NA, int = .y, 
+                        n = 0, type = "flight", ndays = ndays[i])
+    }
+    return(out)
+  })
+  metrics_feeding_indiv[[i]] <- map2(fe, brks[[i]], ~{
+    if(length(.x) > 0){
+      out <- data.frame(degree = igraph::degree(.x),
+                        strength = igraph::strength(.x),
+                        Nili_id = names(igraph::degree(.x)),
+                        int = .y,
+                        n = length(V(.x)),
+                        type = "feeding",
+                        ndays = ndays[i])
+    }else{
+      out <- data.frame(degree = NA, strength = NA, Nili_id = NA, int = .y, 
+                        n = 0, type = "feeding", ndays = ndays[i])
+    }
+    return(out)
+  })
+  metrics_roosting_indiv[[i]] <- map2(ro, brks_roosts[[i]], ~{
+    if(length(.x) > 0){
+      out <- data.frame(degree = igraph::degree(.x),
+                        strength = igraph::strength(.x),
+                        Nili_id = names(igraph::degree(.x)),
+                        int = .y,
+                        n = length(V(.x)),
+                        type = "roosting",
+                        ndays = ndays[i])
+    }else{
+      out <- data.frame(degree = NA, strength = NA, Nili_id = NA, int = .y, 
+                        n = 0, type = "roosting", ndays = ndays[i])
+    }
+    return(out)
+  })
+  rm(fl)
+  rm(fe)
+  rm(ro)
+}
+
+
+```
