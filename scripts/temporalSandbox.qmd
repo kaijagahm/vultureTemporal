@@ -1,6 +1,8 @@
 ---
 title: "temporal"
-format: html
+format: 
+  html:
+    embed-resources: true
 editor: visual
 ---
 
@@ -57,6 +59,7 @@ dim(summer23)
 To test how the networks behave over different time intervals, we can prepare a subset of data (summer 2023) cut into different intervals. E.g. 1 day, 5 days, 10 days, 25 days, 50 days.
 
 ```{r}
+#| include: false
 # What are the different time windows we want to test?
 timewindows <- c(1, 5, 10, 25, 50)
 
@@ -101,6 +104,7 @@ save(data_cut, file = here("data/data_cut.Rda"))
 Now we we need to do the same cuts for the roost data.
 
 ```{r}
+#| include: false
 roosts_summer23 <- roosts[[9]]
 
 roosts_cut <- map(timewindows, ~{
@@ -121,6 +125,7 @@ save(roosts_cut, file = here("data/roosts_cut.Rda"))
 I am using an unholy combination of for loops and `purrr::map()` here, because I find it easier to understand than nested `map` statements (and nested for loops are slower/not easy to parallelize). But they are doing the same thing.
 
 ```{r}
+#| include: false
 # Set up a session for parallel computing, with 10 workers (i.e. can run 10 processes in parallel)
 future::plan(future::multisession, workers = 10)
 
@@ -225,6 +230,7 @@ for(i in 1:length(timewindows)){
 ## Make the network graphs
 
 ```{r}
+#| include: false
 # Create lists to store the network graphs
 graphs_flight <- vector(mode = "list", length = length(timewindows))
 graphs_feeding <- vector(mode = "list", length = length(timewindows))
@@ -266,12 +272,14 @@ save(graphs_roosting, file = here("data/graphs_roosting.Rda"))
 In order to properly label the metrics in the data frame, we need to know which interval they're associated with. Let's retrieve the interval names from the original data.
 
 ```{r}
+#| include: false
 brks <- map(data_cut, ~map_chr(.x, ~as.character(.x$int[1])))
 brks_roosts <- map(roosts_cut, ~map_chr(.x, ~as.character(.x$int[1])))
 identical(brks, brks_roosts) # FALSE--this is a problem. Must mean we were missing some roost data. #XXX investigate...
 ```
 
 ```{r}
+#| include: false
 # Function to get degree and strength
 getmetrics <- function(graph, interval, type, days){
   if(length(graph) > 0){
@@ -299,13 +307,13 @@ metrics_roosting_indiv <- vector(mode = "list", length = length(timewindows))
 # Calculate metrics for each graph, using the getmetrics function defined above.
 for(i in 1:length(timewindows)){
   metrics_flight_indiv[[i]] <- map2(graphs_flight[[i]], brks[[i]], ~{
-    getmetrics(graph = .x, interval = .y, type = "flight", days = i)
+    getmetrics(graph = .x, interval = .y, type = "flight", days = timewindows[i])
   })
   metrics_feeding_indiv[[i]] <- map2(graphs_feeding[[i]], brks[[i]], ~{
-    getmetrics(.x, .y, "feeding", i)
+    getmetrics(.x, .y, "feeding", timewindows[i])
   })
   metrics_roosting_indiv[[i]] <- map2(graphs_roosting[[i]], brks_roosts[[i]], ~{
-    getmetrics(.x, .y, "roosting", i)
+    getmetrics(.x, .y, "roosting", timewindows[i])
   })
 }
 
@@ -319,6 +327,10 @@ metrics_indiv <- bind_rows(purrr::list_rbind(metrics_flight_indiv_df),
                      purrr::list_rbind(metrics_feeding_indiv_df), 
                      purrr::list_rbind(metrics_roosting_indiv_df))
 row.names(metrics_indiv) <- NULL
+metrics_indiv <- metrics_indiv %>%
+  group_by(ndays, int) %>%
+  mutate(normDegree = degree/(n-1),
+         normStrength = strength/sum(strength, na.rm = T))
 save(metrics_indiv, file = here("data/metrics_indiv.Rda"))
 ```
 
@@ -327,6 +339,7 @@ save(metrics_indiv, file = here("data/metrics_indiv.Rda"))
 I'm going to use the structure called `tbl_graph` from the `tidygraph` package, because it makes attaching node or edge characteristics much easier than igraph (using the tidyverse framework).
 
 ```{r}
+#| include: false
 # Create lists to store the tbl_graph objects
 graphs_flight_tbl <- vector(mode = "list", length = length(timewindows))
 graphs_feeding_tbl <- vector(mode = "list", length = length(timewindows))
@@ -359,3 +372,120 @@ save(graphs_roosting_tbl, file = here("data/graphs_roosting_tbl.Rda"))
 ```
 
 ## Make some visualizations
+
+```{r}
+#| include: false
+load(here("data/metrics_indiv.Rda"))
+```
+
+Taking a look at some metrics: how does individual degree differ by time window?
+
+```{r}
+metrics_indiv %>%
+  ggplot(aes(x = ndays, y = normDegree, col = type))+
+  geom_jitter(alpha = 0.1, width = 0.6)+
+  theme_classic()+
+  facet_wrap(~type)+
+  ylab("Degree (normalized)")+
+  xlab("Time window (days)")+
+  theme(legend.position = "none")+
+  NULL
+```
+
+What about individual normalized strength?
+
+```{r}
+metrics_indiv %>%
+  ggplot(aes(x = ndays, y = normStrength, col = type))+
+  geom_jitter(alpha = 0.1, width = 0.6)+
+  theme_classic()+
+  facet_wrap(~type)+
+  ylab("Strength (normalized)")+
+  xlab("Time window (days)")+
+  theme(legend.position = "none")+
+  NULL
+```
+
+Okay interesting. What about mean degree or strength across the whole population? (We will still have different numbers of dots for each time window–maybe only one or two for the highest time window, and many for the 1-day window.
+
+```{r}
+metrics_indiv %>%
+  group_by(type, ndays, int) %>%
+  summarize(mndeg = mean(normDegree)) %>%
+  ggplot(aes(x = ndays, y = mndeg, col = type))+
+  geom_point(alpha = 0.5, size = 2)+
+  theme_classic()+
+  facet_wrap(~type)+
+  ylab("Mean degree (normalized)")+
+  xlab("Time window (days)")+
+  theme(legend.position = "none")+
+  NULL
+
+metrics_indiv %>%
+  group_by(type, ndays, int) %>%
+  summarize(mnstr = mean(normStrength)) %>%
+  ggplot(aes(x = ndays, y = mnstr, col = type))+
+  geom_point(alpha = 0.5, size = 2)+
+  theme_classic()+
+  facet_wrap(~type)+
+  ylab("Mean strength (normalized)")+
+  xlab("Time window (days)")+
+  theme(legend.position = "none")+
+  NULL
+```
+
+What about degree/strength per time period? Let's look at how this changes for 5 random individuals in the population.
+
+```{r}
+set.seed(3)
+random_vultures <- sample(unique(metrics_indiv$Nili_id), 
+                          size = 5, replace = FALSE)
+metrics_indiv <- metrics_indiv %>%
+  mutate(selected = ifelse(Nili_id %in% random_vultures, TRUE, FALSE))
+
+metrics_indiv %>%
+  filter(selected == TRUE) %>%
+  ggplot(aes(x = lubridate::ymd(int), y = normDegree, group = interaction(Nili_id, type)))+
+  geom_line(aes(col = Nili_id), alpha = 0.7)+
+  #facet_grid(rows = vars(ndays), cols = vars(type))+
+  theme_classic()+
+  theme(legend.position = "none")+
+  ylab("Degree (normalized)")+
+  xlab("Date")+
+  ggh4x::facet_nested("Time window (days)" + ndays ~ "Situation" + type)+
+  theme()
+```
+
+This plot definitely suggests that we have different temporal scales going on!
+
+How do network-level metrics change over time? (I have not calculated network-level metrics such as density and modularity yet–could go back and do that. For now, I'm going to use mean mean degree/mean mean strength as measures).
+
+```{r}
+#| echo: false
+#| message: false
+metrics_net <- metrics_indiv %>%
+  group_by(ndays, int, type, n) %>%
+  summarize(mnnormdeg = mean(normDegree),
+            mnnormstr = mean(normStrength)) %>%
+  ungroup() %>%
+  mutate(int = lubridate::ymd(int))
+
+metrics_net %>%
+  ggplot(aes(x = int, y = mnnormdeg, col = factor(ndays)))+
+  geom_point()+
+  geom_line()+
+  facet_wrap(~type, ncol = 1, scales = "free")+
+  theme_classic()+
+  ylab("Mean degree (normalized)")+
+  xlab("Date")
+
+metrics_net %>%
+  group_by(ndays, type) %>%
+  summarize(mn_mnnormdeg = mean(mnnormdeg)) %>%
+  ggplot(aes(x = ndays, y = mn_mnnormdeg, col = type))+
+  geom_point(size = 5)+
+  geom_line(linewidth = 2)+
+  ylab("Mean degree (normalized)")+
+  xlab("Time window (days)")+
+  theme_classic()
+```
