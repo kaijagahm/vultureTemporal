@@ -1,0 +1,130 @@
+---
+title: "Visualize temporal networks"
+format: html
+editor: visual
+---
+
+```{r}
+library(tidyverse)
+library(igraph)
+library(ggraph)
+```
+
+## Make some visualizations
+
+```{r}
+#| include: false
+load(here("data/metrics_indiv.Rda"))
+```
+
+Taking a look at some metrics: how does individual degree differ by time window?
+
+```{r}
+metrics_indiv %>%
+  ggplot(aes(x = ndays, y = normDegree, col = type))+
+  geom_jitter(alpha = 0.1, width = 0.6)+
+  theme_classic()+
+  facet_wrap(~type)+
+  ylab("Degree (normalized)")+
+  xlab("Time window (days)")+
+  theme(legend.position = "none")+
+  NULL
+```
+
+What about individual normalized strength?
+
+```{r}
+metrics_indiv %>%
+  ggplot(aes(x = ndays, y = normStrength, col = type))+
+  geom_jitter(alpha = 0.1, width = 0.6)+
+  theme_classic()+
+  facet_wrap(~type)+
+  ylab("Strength (normalized)")+
+  xlab("Time window (days)")+
+  theme(legend.position = "none")+
+  NULL
+```
+
+Okay interesting. What about mean degree or strength across the whole population? (We will still have different numbers of dots for each time window–maybe only one or two for the highest time window, and many for the 1-day window.
+
+```{r}
+metrics_indiv %>%
+  group_by(type, ndays, int) %>%
+  summarize(mndeg = mean(normDegree)) %>%
+  ggplot(aes(x = ndays, y = mndeg, col = type))+
+  geom_point(alpha = 0.5, size = 2)+
+  theme_classic()+
+  facet_wrap(~type)+
+  ylab("Mean degree (normalized)")+
+  xlab("Time window (days)")+
+  theme(legend.position = "none")+
+  NULL
+
+metrics_indiv %>%
+  group_by(type, ndays, int) %>%
+  summarize(mnstr = mean(normStrength)) %>%
+  ggplot(aes(x = ndays, y = mnstr, col = type))+
+  geom_point(alpha = 0.5, size = 2)+
+  theme_classic()+
+  facet_wrap(~type)+
+  ylab("Mean strength (normalized)")+
+  xlab("Time window (days)")+
+  theme(legend.position = "none")+
+  NULL
+```
+
+What about degree/strength per time period? Let's look at how this changes for 5 random individuals in the population.
+
+```{r}
+set.seed(3)
+random_vultures <- sample(unique(metrics_indiv$Nili_id), 
+                          size = 5, replace = FALSE)
+metrics_indiv <- metrics_indiv %>%
+  mutate(selected = ifelse(Nili_id %in% random_vultures, TRUE, FALSE))
+
+metrics_indiv %>%
+  filter(selected == TRUE) %>%
+  ggplot(aes(x = lubridate::ymd(int), y = normDegree, group = interaction(Nili_id, type)))+
+  geom_line(aes(col = Nili_id), alpha = 0.7)+
+  #facet_grid(rows = vars(ndays), cols = vars(type))+
+  theme_classic()+
+  theme(legend.position = "none")+
+  ylab("Degree (normalized)")+
+  xlab("Date")+
+  ggh4x::facet_nested("Time window (days)" + ndays ~ "Situation" + type)+
+  theme()
+```
+
+This plot definitely suggests that we have different temporal scales going on!
+
+How do network-level metrics change over time? (I have not calculated network-level metrics such as density and modularity yet–could go back and do that. For now, I'm going to use mean mean degree/mean mean strength as measures).
+
+```{r}
+#| echo: false
+#| message: false
+metrics_net <- metrics_indiv %>%
+  group_by(ndays, int, type, n) %>%
+  summarize(mnnormdeg = mean(normDegree),
+            mnnormstr = mean(normStrength)) %>%
+  ungroup() %>%
+  mutate(int = lubridate::ymd(int))
+
+metrics_net %>%
+  ggplot(aes(x = int, y = mnnormdeg, col = factor(ndays)))+
+  geom_point()+
+  geom_line()+
+  facet_wrap(~type, ncol = 1, scales = "free")+
+  theme_classic()+
+  ylab("Mean degree (normalized)")+
+  xlab("Date")
+
+metrics_net %>%
+  group_by(ndays, type) %>%
+  summarize(mn_mnnormdeg = mean(mnnormdeg)) %>%
+  ggplot(aes(x = ndays, y = mn_mnnormdeg, col = type))+
+  geom_point(size = 5)+
+  geom_line(linewidth = 2)+
+  ylab("Mean degree (normalized)")+
+  xlab("Time window (days)")+
+  theme_classic()
+```
