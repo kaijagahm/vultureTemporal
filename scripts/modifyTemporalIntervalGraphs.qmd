@@ -1,0 +1,274 @@
+---
+title: "Modify temporal interval graphs with additional information"
+format: html
+editor: visual
+---
+
+```{r}
+#| include: false
+library(tidyverse) # for data wrangling
+library(sf) # for spatial manipulation (necessary as a precursor to getting edgelists)
+library(vultureUtils) # for getting edgelists
+library(igraph) # for working with networks
+library(tidygraph) # for working with networks
+library(future) # for parallel processing
+library(furrr) # for parallel processing
+library(here) # for tidy file paths
+source(here("scripts/temporal_funs.R"))
+future::plan(future::multisession, workers = 15)
+```
+
+This one comes after the "prepTemporalIntervalGraphs" script
+
+```{r}
+load(here("data/graphs_flight.Rda"))
+load(here("data/graphs_feeding.Rda"))
+load(here("data/graphs_roosting.Rda"))
+load(here("data/data_cut.Rda"))
+load(here("data/roosts_cut.Rda"))
+load(here("data/timewindows.Rda"))
+```
+
+## Calculate individual-level metrics
+
+In order to properly label the metrics in the data frame, we need to know which interval they're associated with. Let's retrieve the interval names from the original data.
+
+```{r}
+#| include: false
+brks <- map(data_cut, ~map_chr(.x, ~as.character(.x$int[1])))
+brks_roosts <- map(roosts_cut, ~map_chr(.x, ~as.character(.x$int[1])))
+identical(brks, brks_roosts) # FALSE--this is a problem. Must mean we were missing some roost data. #XXX investigate...
+map2(brks, brks_roosts, ~identical(.x, .y)) # it's just the daily scale that isn't the same.
+brks[[1]]
+brks_roosts[[1]] # missing 2023-09-13. Maybe we just didn't have roost data on that last day.
+```
+
+```{r}
+#| include: false
+
+# Initialize lists to hold the metrics
+metrics_flight_indiv <- vector(mode = "list", length = length(timewindows))
+metrics_feeding_indiv <- vector(mode = "list", length = length(timewindows))
+metrics_roosting_indiv <- vector(mode = "list", length = length(timewindows))
+
+# Calculate metrics for each graph, using the getmetrics function defined above.
+# getmetrics function from temporal_funs.R
+for(i in 1:length(timewindows)){
+  metrics_flight_indiv[[i]] <- map2(graphs_flight[[i]], brks[[i]], ~{
+    getmetrics(graph = .x, interval = .y, type = "flight", days = timewindows[i])
+  })
+  metrics_feeding_indiv[[i]] <- map2(graphs_feeding[[i]], brks[[i]], ~{
+    getmetrics(.x, .y, "feeding", timewindows[i])
+  })
+  metrics_roosting_indiv[[i]] <- map2(graphs_roosting[[i]], brks_roosts[[i]], ~{
+    getmetrics(.x, .y, "roosting", timewindows[i])
+  })
+}
+
+# Smoosh the lists down into data frames instead (so now, instead of a list of lists, we will have a list of data frames)
+metrics_flight_indiv_df <- map(metrics_flight_indiv, ~purrr::list_rbind(.x))
+metrics_feeding_indiv_df <- map(metrics_feeding_indiv, ~purrr::list_rbind(.x))
+metrics_roosting_indiv_df <- map(metrics_roosting_indiv, ~purrr::list_rbind(.x))
+
+# smoosh the lists further into data frames (one data frame for each social situation), and bind all the situations together into a single data frame. We can do this because we specified "type" in the for loop above, so all the data is already labeled.
+metrics_indiv <- bind_rows(purrr::list_rbind(metrics_flight_indiv_df), 
+                     purrr::list_rbind(metrics_feeding_indiv_df), 
+                     purrr::list_rbind(metrics_roosting_indiv_df))
+row.names(metrics_indiv) <- NULL
+save(metrics_indiv, file = here("data/metrics_indiv.Rda"))
+```
+
+## Attach metrics to graphs
+
+I'm going to use the structure called `tbl_graph` from the `tidygraph` package, because it makes attaching node or edge characteristics much easier than igraph (using the tidyverse framework).
+
+```{r}
+#| include: false
+# Create lists to store the tbl_graph objects
+graphs_flight_tbl <- vector(mode = "list", length = length(timewindows))
+graphs_feeding_tbl <- vector(mode = "list", length = length(timewindows))
+graphs_roosting_tbl <- vector(mode = "list", length = length(timewindows))
+
+# Fill the lists: convert each graph to a tbl_graph, and then join the metrics calculated above.
+for(i in 1:length(timewindows)){
+  fl_tbl <- map(graphs_flight[[i]], ~as_tbl_graph(.x))
+  fe_tbl <- map(graphs_feeding[[i]], ~as_tbl_graph(.x))
+  ro_tbl <- map(graphs_roosting[[i]], ~as_tbl_graph(.x))
+  
+  graphs_flight_tbl[[i]] <- map2(fl_tbl, metrics_flight_indiv[[i]], ~{
+    .x %>% activate(nodes) %>%
+      left_join(.y, by = c("name" = "Nili_id"))
+  })
+  graphs_feeding_tbl[[i]] <- map2(fe_tbl, metrics_feeding_indiv[[i]], ~{
+    .x %>% activate(nodes) %>%
+      left_join(.y, by = c("name" = "Nili_id"))
+  })
+  graphs_roosting_tbl[[i]] <- map2(ro_tbl, metrics_roosting_indiv[[i]], ~{
+    .x %>% activate(nodes) %>%
+      left_join(.y, by = c("name" = "Nili_id"))
+  })
+}
+
+# Save the tbl_graphs with attached metrics to files
+save(graphs_flight_tbl, file = here("data/graphs_flight_tbl.Rda"))
+save(graphs_feeding_tbl, file = here("data/graphs_feeding_tbl.Rda"))
+save(graphs_roosting_tbl, file = here("data/graphs_roosting_tbl.Rda"))
+```
+
+## Spatial centroids
+
+Note that these won't be the centroids of the interactions, but rather of the individuals' movements more generally. Let's take the original data from which the networks were derived and compute spatial centroids for each time interval (so, daily, 2-day, 5-day, etc.). Then we can attach these to the networks and hopefully use that to plot some network graphs, positioning individuals by where they actually were.
+
+For the co-roosting networks, we can either position the individuals by their spatial centroids during the day, or more interestingly, we can position them by their actual roosting coordinates. Actually in general it would probably be good to change the co-roosting networks to use distance instead of shared polygons. (XXX come back to this, 3/14)
+
+### By interval
+
+```{r}
+#data_cut
+interval_centroids <- vector(mode = "list", length = length(timewindows))
+for(i in 1:length(interval_centroids)){
+  interval_centroids[[i]] <- suppressWarnings(furrr::future_map(data_cut[[i]], ~{
+    library(sf) # have to do this so that furrr will work
+    .x %>%
+      dplyr::select(Nili_id, int) %>%
+      dplyr::group_by(Nili_id, int) %>%
+      dplyr::summarize(sf::st_union(geometry), .groups = "drop") %>%
+      sf::st_centroid() %>%
+      bind_cols(as.data.frame(st_coordinates(.))) %>%
+      st_drop_geometry() %>%
+      rename("X_int" = X,
+             "Y_int" = Y)
+  }, .progress = T))
+}
+```
+
+#### Bounding boxes
+
+```{r}
+interval_centroids_all <- map(interval_centroids, purrr::list_rbind)
+per_interval_bboxes <- map2(interval_centroids_all, timewindows, ~{
+  df <- data.frame(timewindow = .y,
+                   xmin = min(.x$X_int)-(sd(.x$X_int)/10),
+                   xmax = max(.x$X_int)+(sd(.x$X_int)/10),
+                   ymin = min(.x$Y_int)-(sd(.x$Y_int)/10),
+                   ymax = max(.x$Y_int)+(sd(.x$Y_int)/10))
+  return(df)
+})
+save(per_interval_bboxes, file = here("data/per_interval_bboxes.Rda"))
+```
+
+### Overall
+
+```{r}
+overall_centroids <- data_cut[[1]] %>% purrr::list_rbind() %>%
+  sf::st_as_sf(., coords = c("location_long", "location_lat"), 
+               crs = "WGS84", remove = F) %>%
+  group_by(Nili_id) %>%
+  summarize(sf::st_union(geometry), .groups = "drop") %>%
+  sf::st_centroid() %>%
+  bind_cols(as.data.frame(sf::st_coordinates(.))) %>%
+  sf::st_drop_geometry() %>%
+  rename("X_overall" = X,
+         "Y_overall" = Y)
+```
+
+#### Bounding box
+
+```{r}
+overall_bbox <- data.frame(xmin = min(overall_centroids$X_overall)-(sd(overall_centroids$X_overall)/10),
+                           xmax = max(overall_centroids$X_overall)+(sd(overall_centroids$X_overall)/10),
+                           ymin = min(overall_centroids$Y_overall)-(sd(overall_centroids$Y_overall)/10),
+                           ymax = max(overall_centroids$Y_overall)+(sd(overall_centroids$Y_overall)/10))
+save(overall_bbox, file = here("data/overall_bbox.Rda"))
+```
+
+## Roost locations
+```{r}
+roost_locs <- vector(mode = "list", length = length(timewindows))
+for(i in 1:length(roosts_cut)){
+  roost_locs[[i]] <- suppressWarnings(furrr::future_map(roosts_cut[[i]], ~{
+    library(sf) # have to do this so that furrr will work
+    .x %>%
+      dplyr::select(Nili_id, int) %>%
+      dplyr::group_by(Nili_id, int) %>%
+      dplyr::summarize(sf::st_union(geometry), .groups = "drop") %>%
+      sf::st_centroid() %>%
+      bind_cols(as.data.frame(st_coordinates(.))) %>%
+      st_drop_geometry() %>%
+      rename("X_roost" = X,
+             "Y_roost" = Y)
+  }, .progress = T))
+}
+```
+
+#### Bounding box
+```{r}
+roost_locs_all <- map(roost_locs, purrr::list_rbind)
+roost_locs_bboxes <- map2(roost_locs_all, timewindows, ~{
+  df <- data.frame(timewindow = .y,
+                   xmin = min(.x$X_roost)-(sd(.x$X_roost)/10),
+                   xmax = max(.x$X_roost)+(sd(.x$X_roost)/10),
+                   ymin = min(.x$Y_roost)-(sd(.x$Y_roost)/10),
+                   ymax = max(.x$Y_roost)+(sd(.x$Y_roost)/10))
+  return(df)
+})
+save(roost_locs_bboxes, file = here("data/roost_locs_bboxes.Rda"))
+```
+
+## Attach both centroids to the graphs
+```{r}
+length(interval_centroids)
+length(timewindows)
+length(graphs_flight_tbl)
+
+for(i in 1:length(timewindows)){
+  fl <- graphs_flight_tbl[[i]]
+  fe <- graphs_feeding_tbl[[i]]
+  ro <- graphs_roosting_tbl[[i]]
+  centrs <- interval_centroids[[i]]
+  roostlocs <- roost_locs[[i]]
+  if(i == 1){
+    roost_centrs <- centrs[-length(centrs)]
+  }else{
+    roost_centrs <- centrs
+  }
+  
+  graphs_flight_tbl[[i]] <- purrr::map2(fl, centrs, ~{
+    .x %>%
+      activate(nodes) %>%
+    left_join(overall_centroids, by = c("name" = "Nili_id")) %>%
+    left_join(.y, by = c("name" = "Nili_id", "int"))
+  })
+  
+  graphs_feeding_tbl[[i]] <- purrr::map2(fe, centrs, ~{
+    .x %>%
+      activate(nodes) %>%
+    left_join(overall_centroids, by = c("name" = "Nili_id")) %>%
+    left_join(.y, by = c("name" = "Nili_id", "int"))
+  })
+
+  graphs_roosting_tbl[[i]] <- purrr::map2(ro, roost_centrs, ~{
+    .x %>%
+      activate(nodes) %>%
+      left_join(overall_centroids, by = c("name" = "Nili_id")) %>%
+      left_join(.y, by = c("name" = "Nili_id", "int"))
+  }) %>%
+    purrr::map2(., roostlocs, ~{
+      .x %>%
+        activate(nodes) %>%
+        left_join(.y, by = c("name" = "Nili_id", "int"))
+    })
+  rm(fl)
+  rm(fe)
+  rm(ro)
+  rm(centrs)
+  rm(roost_centrs)
+  rm(roostlocs)
+}
+
+# Save graphs to files
+save(graphs_flight_tbl, file = here("data/graphs_flight_tbl.Rda"))
+save(graphs_feeding_tbl, file = here("data/graphs_feeding_tbl.Rda"))
+save(graphs_roosting_tbl, file = here("data/graphs_roosting_tbl.Rda"))
+```
+
