@@ -31,9 +31,40 @@ ndays <- c(1, 2, 5, 10, 20, 40)
 min <- min(testseason$dateOnly)
 max <- max(testseason$dateOnly)
 breaks <- map(ndays, ~seq(from = as.POSIXct(min), to = as.POSIXct(max), by = paste(.x, "day", sep = " ")))
-
-# Set up variables for cutting --------------------------------------------
-# XXX start here 3/13/24
-
 annotated <- map(breaks, ~testseason %>%
-                   mutate(int = cut(dateOnly, breaks = as.Date(.x), include.lowest = T))) #4.8 GB
+                   mutate(int = cut(dateOnly, breaks = as.Date(.x), include.lowest = T)))
+annotated_roosts <- map(breaks, ~testseason_roosts %>%
+                          mutate(int = cut(roost_date, breaks = as.Date(.x), include.lowest = T)))
+
+split_sfData <- map(annotated, ~{
+  cat("grouping\n")
+  lst <- .x %>% group_by(int) %>% group_split()
+  cat("converting to sf\n")
+  lst <- map(lst, ~sf::st_as_sf(.x, coords = c("location_long", "location_lat"), remove = F, crs = "WGS84"))
+  return(lst)
+  cat("cleaning up\n")
+  gc()
+}, .progress = T)
+rm(annotated) # we have to be very careful with space here.
+gc()
+
+split_sfData_roosts <- purrr::map(annotated_roosts, ~{
+  lst <- .x %>% group_by(int) %>% group_split()
+  lst <- map(lst, ~sf::st_as_sf(.x, coords = c("location_long", "location_lat"), remove = F, crs = "WGS84"))
+  return(lst)
+}, .progress = T)
+rm(annotated_roosts)
+
+save(split_sfData, file = "data/split_sfData.Rda")
+save(split_sfData_roosts, file = "data/split_sfData_roosts.Rda")
+load("data/split_sfData.Rda")
+load("data/split_sfData_roosts.Rda")
+brks <- map(split_sfData, ~map_chr(.x, ~{as.character(.x$int[1])})) # extract the date breaks
+brks_roosts <- map(split_sfData_roosts, ~map_chr(.x, ~{as.character(.x$int[1])})) # extract the date breaks for roosting data
+identical(brks, brks_roosts) # TRUE yay!
+length(split_sfData_roosts) == length(ndays) # TRUE
+map_dbl(split_sfData_roosts, length) # should be very similar to the same for non-roost data, if not identical.
+
+gc()
+
+
