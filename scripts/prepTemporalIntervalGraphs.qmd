@@ -16,6 +16,7 @@ library(tidygraph) # for working with networks
 library(future) # for parallel processing
 library(furrr) # for parallel processing
 library(here) # for tidy file paths
+source(here("scripts/temporal_funs.R"))
 ```
 
 ## Prepare a subset of data
@@ -32,7 +33,7 @@ rm(downsampled_10min_forSocial)
 
 # Put all the seasons together and remove the columns we don't need
 sfdata <- purrr::list_rbind(sfdata) %>%
-  select(-c(tag_id, sensor_type_id, acceleration_raw_x, acceleration_raw_y, acceleration_raw_z, barometric_height, battery_charge_percent, battery_charging_current, external_temperature, gps_hdop, gps_satellite_count, gps_time_to_fix, import_marked_outlier, light_level, magnetic_field_raw_x, magnetic_field_raw_y, magnetic_field_raw_z, ornitela_transmission_protocol, tag_voltage, update_ts, visible, deployment_id, event_id, sensor_type, tag_local_identifier, location_long.1, location_lat.1, optional, sensor, earliest_date_born, exact_date_of_birth, group_id, individual_id, latest_date_born, local_identifier, marker_id, mates, mortality_date, mortality_latitude, mortality_type, nick_name, offspring, parents, ring_id, siblings, taxon_canonical_name, taxon_detail, number_of_events, number_of_deployments))
+  select(-any_of(cols_to_remove)) # cols_to_remove is defined in temporal_funs.R
 
 # For our own sanity, let's just work with a single season: summer 2023
 summer23 <- sfdata %>%
@@ -127,7 +128,7 @@ I am using an unholy combination of for loops and `purrr::map()` here, because I
 ```{r}
 #| include: false
 # Set up a session for parallel computing, with 10 workers (i.e. can run 10 processes in parallel)
-future::plan(future::multisession, workers = 10)
+future::plan(future::multisession, workers = 15)
 
 # Initialize lists to hold the outputs of get*Edges.
 sris_flight <- vector(mode = "list", length = length(timewindows))
@@ -237,7 +238,7 @@ graphs_feeding <- vector(mode = "list", length = length(timewindows))
 graphs_roosting <- vector(mode = "list", length = length(timewindows))
 
 # Set up a "plan" to run this code in parallel, so it will go much faster
-future::plan(future::multisession, workers = 10)
+future::plan(future::multisession, workers = 15)
 
 # For each time window, loop through the edge lists and turn them into graphs
 for(i in 1:length(timewindows)){
@@ -371,121 +372,67 @@ save(graphs_feeding_tbl, file = here("data/graphs_feeding_tbl.Rda"))
 save(graphs_roosting_tbl, file = here("data/graphs_roosting_tbl.Rda"))
 ```
 
-## Make some visualizations
+## Spatial centroids
+
+Note that these won't be the centroids of the interactions, but rather of the individuals' movements more generally. Let's take the original data from which the networks were derived and compute spatial centroids for each time interval (so, daily, 2-day, 5-day, etc.). Then we can attach these to the networks and hopefully use that to plot some network graphs, positioning individuals by where they actually were.
+
+For the co-roosting networks, we can either position the individuals by their spatial centroids during the day, or more interestingly, we can position them by their actual roosting coordinates. Actually in general it would probably be good to change the co-roosting networks to use distance instead of shared polygons. (XXX come back to this, 3/14)
+
+### By interval
 
 ```{r}
-#| include: false
-load(here("data/metrics_indiv.Rda"))
+#data_cut
+interval_centroids <- vector(mode = "list", length = length(timewindows))
+for(i in 1:length(interval_centroids)){
+  interval_centroids[[i]] <- furrr::future_map(data_cut[[i]], ~{
+    library(sf) # have to do this so that furrr will work
+    .x %>%
+      dplyr::select(Nili_id, int) %>%
+      dplyr::group_by(Nili_id, int) %>%
+      dplyr::summarize(sf::st_union(geometry), .groups = "drop") %>%
+      sf::st_centroid() %>%
+      bind_cols(as.data.frame(st_coordinates(.))) %>%
+      st_drop_geometry() %>%
+      rename("X_int" = X,
+             "Y_int" = Y)
+  }, .progress = T)
+}
 ```
 
-Taking a look at some metrics: how does individual degree differ by time window?
+#### Bounding boxes
 
 ```{r}
-metrics_indiv %>%
-  ggplot(aes(x = ndays, y = normDegree, col = type))+
-  geom_jitter(alpha = 0.1, width = 0.6)+
-  theme_classic()+
-  facet_wrap(~type)+
-  ylab("Degree (normalized)")+
-  xlab("Time window (days)")+
-  theme(legend.position = "none")+
-  NULL
+interval_centroids_all <- map(interval_centroids, purrr::list_rbind)
+per_interval_bboxes <- map2(interval_centroids_all, timewindows, ~{
+  df <- data.frame(timewindow = .y,
+                   xmin = min(.x$X_int)-(sd(.x$X_int)/10),
+                   xmax = max(.x$X_int)+(sd(.x$X_int)/10),
+                   ymin = min(.x$Y_int)-(sd(.x$Y_int)/10),
+                   ymax = max(.x$Y_int)+(sd(.x$Y_int)/10))
+  return(df)
+})
 ```
 
-What about individual normalized strength?
+### Overall
 
 ```{r}
-metrics_indiv %>%
-  ggplot(aes(x = ndays, y = normStrength, col = type))+
-  geom_jitter(alpha = 0.1, width = 0.6)+
-  theme_classic()+
-  facet_wrap(~type)+
-  ylab("Strength (normalized)")+
-  xlab("Time window (days)")+
-  theme(legend.position = "none")+
-  NULL
+overall_centroids <- data_cut[[1]] %>% purrr::list_rbind() %>%
+  sf::st_as_sf(., coords = c("location_long", "location_lat"), 
+               crs = "WGS84", remove = F) %>%
+  group_by(Nili_id) %>%
+  summarize(sf::st_union(geometry), .groups = "drop") %>%
+  sf::st_centroid() %>%
+  bind_cols(as.data.frame(sf::st_coordinates(.))) %>%
+  sf::st_drop_geometry() %>%
+  rename("X_overall" = X,
+         "Y_overall" = Y)
 ```
 
-Okay interesting. What about mean degree or strength across the whole population? (We will still have different numbers of dots for each time window–maybe only one or two for the highest time window, and many for the 1-day window.
+#### Bounding box
 
 ```{r}
-metrics_indiv %>%
-  group_by(type, ndays, int) %>%
-  summarize(mndeg = mean(normDegree)) %>%
-  ggplot(aes(x = ndays, y = mndeg, col = type))+
-  geom_point(alpha = 0.5, size = 2)+
-  theme_classic()+
-  facet_wrap(~type)+
-  ylab("Mean degree (normalized)")+
-  xlab("Time window (days)")+
-  theme(legend.position = "none")+
-  NULL
-
-metrics_indiv %>%
-  group_by(type, ndays, int) %>%
-  summarize(mnstr = mean(normStrength)) %>%
-  ggplot(aes(x = ndays, y = mnstr, col = type))+
-  geom_point(alpha = 0.5, size = 2)+
-  theme_classic()+
-  facet_wrap(~type)+
-  ylab("Mean strength (normalized)")+
-  xlab("Time window (days)")+
-  theme(legend.position = "none")+
-  NULL
-```
-
-What about degree/strength per time period? Let's look at how this changes for 5 random individuals in the population.
-
-```{r}
-set.seed(3)
-random_vultures <- sample(unique(metrics_indiv$Nili_id), 
-                          size = 5, replace = FALSE)
-metrics_indiv <- metrics_indiv %>%
-  mutate(selected = ifelse(Nili_id %in% random_vultures, TRUE, FALSE))
-
-metrics_indiv %>%
-  filter(selected == TRUE) %>%
-  ggplot(aes(x = lubridate::ymd(int), y = normDegree, group = interaction(Nili_id, type)))+
-  geom_line(aes(col = Nili_id), alpha = 0.7)+
-  #facet_grid(rows = vars(ndays), cols = vars(type))+
-  theme_classic()+
-  theme(legend.position = "none")+
-  ylab("Degree (normalized)")+
-  xlab("Date")+
-  ggh4x::facet_nested("Time window (days)" + ndays ~ "Situation" + type)+
-  theme()
-```
-
-This plot definitely suggests that we have different temporal scales going on!
-
-How do network-level metrics change over time? (I have not calculated network-level metrics such as density and modularity yet–could go back and do that. For now, I'm going to use mean mean degree/mean mean strength as measures).
-
-```{r}
-#| echo: false
-#| message: false
-metrics_net <- metrics_indiv %>%
-  group_by(ndays, int, type, n) %>%
-  summarize(mnnormdeg = mean(normDegree),
-            mnnormstr = mean(normStrength)) %>%
-  ungroup() %>%
-  mutate(int = lubridate::ymd(int))
-
-metrics_net %>%
-  ggplot(aes(x = int, y = mnnormdeg, col = factor(ndays)))+
-  geom_point()+
-  geom_line()+
-  facet_wrap(~type, ncol = 1, scales = "free")+
-  theme_classic()+
-  ylab("Mean degree (normalized)")+
-  xlab("Date")
-
-metrics_net %>%
-  group_by(ndays, type) %>%
-  summarize(mn_mnnormdeg = mean(mnnormdeg)) %>%
-  ggplot(aes(x = ndays, y = mn_mnnormdeg, col = type))+
-  geom_point(size = 5)+
-  geom_line(linewidth = 2)+
-  ylab("Mean degree (normalized)")+
-  xlab("Time window (days)")+
-  theme_classic()
+overall_bbox <- data.frame(xmin = min(overall_centroids$X_overall)-(sd(overall_centroids$X_overall)/10),
+                           xmax = max(overall_centroids$X_overall)+(sd(overall_centroids$X_overall)/10),
+                           ymin = min(overall_centroids$Y_overall)-(sd(overall_centroids$Y_overall)/10),
+                           ymax = max(overall_centroids$Y_overall)+(sd(overall_centroids$Y_overall)/10))
 ```
