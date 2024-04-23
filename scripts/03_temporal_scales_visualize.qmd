@@ -2,6 +2,7 @@
 title: "Visualize temporal networks"
 format: html
 editor: visual
+embed-resources: true
 ---
 
 ```{r}
@@ -22,6 +23,7 @@ load(here("data/metrics_indiv.Rda"))
 Taking a look at some metrics: how does individual degree differ by time window?
 
 ```{r}
+#| echo: false
 metrics_indiv %>%
   ggplot(aes(x = ndays, y = normDegree, col = type))+
   geom_jitter(alpha = 0.1, width = 0.6)+
@@ -36,6 +38,7 @@ metrics_indiv %>%
 What about individual normalized strength?
 
 ```{r}
+#| echo: false
 metrics_indiv %>%
   ggplot(aes(x = ndays, y = normStrength, col = type))+
   geom_jitter(alpha = 0.1, width = 0.6)+
@@ -50,6 +53,7 @@ metrics_indiv %>%
 Okay interesting. What about mean degree or strength across the whole population? (We will still have different numbers of dots for each time window–maybe only one or two for the highest time window, and many for the 1-day window.
 
 ```{r}
+#| echo: false
 metrics_indiv %>%
   group_by(type, ndays, int) %>%
   summarize(mndeg = mean(normDegree, na.rm = T)) %>%
@@ -78,6 +82,7 @@ metrics_indiv %>%
 What about degree/strength per time period? Let's look at how this changes for 5 random individuals in the population.
 
 ```{r}
+
 set.seed(3)
 random_vultures <- sample(unique(metrics_indiv$Nili_id), 
                           size = 5, replace = FALSE)
@@ -136,6 +141,7 @@ Now let's examine how the network measures change over the time points at differ
 Degree:
 
 ```{r}
+#| echo: false
 # How do network-level measures change over the time points?
 ## DEGREE
 metrics_net <- metrics_indiv %>%
@@ -165,6 +171,7 @@ metrics_net %>%
 Strength:
 
 ```{r}
+#| echo: false
 metrics_net %>%
   ggplot(aes(x = int, y = mnnormstr, col = factor(ndays)))+
   geom_point()+
@@ -181,6 +188,7 @@ metrics_net %>%
 ```
 
 ```{r}
+#| echo: false
 metr <- metrics_indiv %>%
   filter(type %in% c("flight", "feeding"), ndays == 1) %>% 
   filter(lubridate::ymd(int) %in% seq(from = lubridate::ymd("2023-05-15"), 
@@ -237,6 +245,7 @@ What about the number of interactions over time?
 We have to go back to the edge lists (not the graphs created from them) for this.
 
 ```{r}
+#| include: false
 load(here("data/edges_flight.Rda"))
 load(here("data/edges_feeding.Rda"))
 load(here("data/edges_roosting.Rda")) # xxx go back and get locations for these
@@ -255,6 +264,7 @@ ro_unique <- ro_edges_days %>% select(ID1, ID2, date) %>% distinct() %>%
 ```
 
 ```{r}
+#| echo: false
 # Number of interactions per day
 ipd_fl <- fl_edges_days %>%
   group_by(date) %>%
@@ -296,6 +306,7 @@ ipd <- ipd %>%
 Now make some plots
 
 ```{r}
+#| echo: false
 ipd %>%
   ggplot(aes(x = date, y = density, col = situ))+
   geom_point()+
@@ -308,6 +319,7 @@ ipd %>%
 ```
 
 ```{r}
+#| echo: false
 # Number of individuals interacting (absolute)
 ipd %>%
   ggplot(aes(x = date, y = indivs_interacting, col = situ))+
@@ -328,6 +340,7 @@ ipd %>%
 Is there a (negative? positive?) correlation between feeding and flight situations in terms of number of interactions?
 
 ```{r}
+#| echo: false
 #| warning: false
 #| message: false
 wide <- ipd %>%
@@ -351,6 +364,7 @@ More investigation of correlation between feeding and flight metrics.
 Code for rolling correlations from [here](https://www.r-bloggers.com/2017/07/tidy-time-series-analysis-part-3-the-rolling-correlation/)
 
 ```{r}
+#| echo: false
 library(tidyquant)
 library(corrr)
 library(TTR)

@@ -2,6 +2,7 @@
 title: "Modify temporal interval graphs with additional information"
 format: html
 editor: visual
+embed-resources: true
 ---
 
 ```{r}
