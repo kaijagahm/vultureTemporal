@@ -14,11 +14,11 @@ library(tidygraph) # for working with networks
 library(future) # for parallel processing
 library(furrr) # for parallel processing
 library(here) # for tidy file paths
-source(here("scripts/temporal_funs.R"))
+source(here("scripts/00_temporal_funs.R"))
 future::plan(future::multisession, workers = 15)
 ```
 
-This one comes after the "prepTemporalIntervalGraphs" script
+This one comes after the "01_prepTemporalIntervalGraphs" script
 
 ```{r}
 load(here("data/graphs_flight.Rda"))
@@ -183,6 +183,7 @@ save(overall_bbox, file = here("data/overall_bbox.Rda"))
 ```
 
 ## Roost locations
+
 ```{r}
 roost_locs <- vector(mode = "list", length = length(timewindows))
 for(i in 1:length(roosts_cut)){
@@ -202,6 +203,7 @@ for(i in 1:length(roosts_cut)){
 ```
 
 #### Bounding box
+
 ```{r}
 roost_locs_all <- map(roost_locs, purrr::list_rbind)
 roost_locs_bboxes <- map2(roost_locs_all, timewindows, ~{
@@ -216,6 +218,7 @@ save(roost_locs_bboxes, file = here("data/roost_locs_bboxes.Rda"))
 ```
 
 ## Attach both centroids to the graphs
+
 ```{r}
 length(interval_centroids)
 length(timewindows)
@@ -271,4 +274,3 @@ save(graphs_flight_tbl, file = here("data/graphs_flight_tbl.Rda"))
 save(graphs_feeding_tbl, file = here("data/graphs_feeding_tbl.Rda"))
 save(graphs_roosting_tbl, file = here("data/graphs_roosting_tbl.Rda"))
 ```
-

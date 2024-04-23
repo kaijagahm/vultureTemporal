@@ -1,0 +1,415 @@
+---
+title: "Visualize temporal networks"
+format: html
+editor: visual
+---
+
+```{r}
+#| include: false
+library(tidyverse)
+library(igraph)
+library(ggraph)
+library(here)
+```
+
+## Make some visualizations
+
+```{r}
+#| include: false
+load(here("data/metrics_indiv.Rda"))
+```
+
+Taking a look at some metrics: how does individual degree differ by time window?
+
+```{r}
+metrics_indiv %>%
+  ggplot(aes(x = ndays, y = normDegree, col = type))+
+  geom_jitter(alpha = 0.1, width = 0.6)+
+  theme_classic()+
+  facet_wrap(~type)+
+  ylab("Degree (normalized)")+
+  xlab("Time window (days)")+
+  theme(legend.position = "none")+
+  NULL
+```
+
+What about individual normalized strength?
+
+```{r}
+metrics_indiv %>%
+  ggplot(aes(x = ndays, y = normStrength, col = type))+
+  geom_jitter(alpha = 0.1, width = 0.6)+
+  theme_classic()+
+  facet_wrap(~type)+
+  ylab("Strength (normalized)")+
+  xlab("Time window (days)")+
+  theme(legend.position = "none")+
+  NULL
+```
+
+Okay interesting. What about mean degree or strength across the whole population? (We will still have different numbers of dots for each time window–maybe only one or two for the highest time window, and many for the 1-day window.
+
+```{r}
+metrics_indiv %>%
+  group_by(type, ndays, int) %>%
+  summarize(mndeg = mean(normDegree, na.rm = T)) %>%
+  ggplot(aes(x = ndays, y = mndeg, col = type))+
+  geom_point(alpha = 0.5, size = 2)+
+  theme_classic()+
+  facet_wrap(~type)+
+  ylab("Mean degree (normalized)")+
+  xlab("Time window (days)")+
+  theme(legend.position = "none")+
+  NULL
+
+metrics_indiv %>%
+  group_by(type, ndays, int) %>%
+  summarize(mnstr = mean(normStrength, na.rm = T)) %>%
+  ggplot(aes(x = ndays, y = mnstr, col = type))+
+  geom_point(alpha = 0.5, size = 2)+
+  theme_classic()+
+  facet_wrap(~type)+
+  ylab("Mean strength (normalized)")+
+  xlab("Time window (days)")+
+  theme(legend.position = "none")+
+  NULL
+```
+
+What about degree/strength per time period? Let's look at how this changes for 5 random individuals in the population.
+
+```{r}
+set.seed(3)
+random_vultures <- sample(unique(metrics_indiv$Nili_id), 
+                          size = 5, replace = FALSE)
+metrics_indiv <- metrics_indiv %>%
+  mutate(selected = ifelse(Nili_id %in% random_vultures, TRUE, FALSE))
+
+metrics_indiv %>%
+  filter(selected == TRUE) %>%
+  ggplot(aes(x = lubridate::ymd(int), y = normDegree, group = interaction(Nili_id, type)))+
+  geom_line(aes(col = Nili_id), alpha = 0.7)+
+  #facet_grid(rows = vars(ndays), cols = vars(type))+
+  theme_classic()+
+  theme(legend.position = "none")+
+  ylab("Degree (normalized)")+
+  xlab("Date")+
+  ggh4x::facet_nested("Time window (days)" + ndays ~ "Situation" + type)+
+  theme()
+```
+
+This plot definitely suggests that we have different temporal scales going on!
+
+How do network-level metrics change over time? (I have not calculated network-level metrics such as density and modularity yet–could go back and do that. For now, I'm going to use mean mean degree/mean mean strength as measures).
+
+```{r}
+#| echo: false
+#| message: false
+metrics_net <- metrics_indiv %>%
+  group_by(ndays, int, type, n) %>%
+  summarize(mnnormdeg = mean(normDegree),
+            mnnormstr = mean(normStrength)) %>%
+  ungroup() %>%
+  mutate(int = lubridate::ymd(int))
+
+metrics_net %>%
+  ggplot(aes(x = int, y = mnnormdeg, col = factor(ndays)))+
+  geom_point()+
+  geom_line()+
+  facet_wrap(~type, ncol = 1, scales = "free")+
+  theme_classic()+
+  ylab("Mean degree (normalized)")+
+  xlab("Date")
+
+metrics_net %>%
+  group_by(ndays, type) %>%
+  summarize(mn_mnnormdeg = mean(mnnormdeg)) %>%
+  ggplot(aes(x = ndays, y = mn_mnnormdeg, col = type))+
+  geom_point(size = 5)+
+  geom_line(linewidth = 2)+
+  ylab("Mean degree (normalized)")+
+  xlab("Time window (days)")+
+  theme_classic()
+```
+
+Now let's examine how the network measures change over the time points at different scales.
+
+Degree:
+
+```{r}
+# How do network-level measures change over the time points?
+## DEGREE
+metrics_net <- metrics_indiv %>%
+  group_by(ndays, int, type, n) %>%
+  summarize(mndeg = mean(degree),
+            mnstr = mean(strength),
+            mnnormdeg = mean(normDegree),
+            mnnormstr = mean(normStrength)) %>%
+  mutate(int = lubridate::ymd(int))
+
+metrics_net %>%
+  ggplot(aes(x = int, y = mnnormdeg, col = factor(ndays)))+
+  geom_point()+
+  geom_line()+
+  facet_wrap(~type, ncol = 1, scales = "free")+
+  geom_hline(aes(yintercept = 0.5), col = "black", linetype = 2)+
+  theme_classic()
+
+metrics_net %>%
+  ggplot(aes(x = mnnormdeg, col = factor(ndays)))+
+  geom_density()+
+  facet_grid(rows = vars(type), cols = vars(ndays), scales = "free")+
+  geom_vline(aes(xintercept = 0.5))+
+  theme_minimal()
+```
+
+Strength:
+
+```{r}
+metrics_net %>%
+  ggplot(aes(x = int, y = mnnormstr, col = factor(ndays)))+
+  geom_point()+
+  geom_line()+
+  facet_wrap(~type, ncol = 1, scales = "free")+
+  theme_classic() # interesting step pattern! I wonder what that's about.
+
+metrics_net %>%
+  ggplot(aes(x = mnnormstr, col = factor(ndays)))+
+  geom_density()+
+  facet_grid(rows = vars(type), cols = vars(ndays), scales = "free")+
+  theme_minimal()
+# It's a little harder to know how to interpret this one, compared to the degree one.
+```
+
+```{r}
+metr <- metrics_indiv %>%
+  filter(type %in% c("flight", "feeding"), ndays == 1) %>% 
+  filter(lubridate::ymd(int) %in% seq(from = lubridate::ymd("2023-05-15"), 
+                                      to = lubridate::ymd("2023-06-15"), by = 1)) %>%
+  group_by(type, int) %>%
+  mutate(normDegree_prop = normDegree/max(normDegree),
+         normDegree_scl = (normDegree - mean(normDegree))/sd(normDegree), # looks like this is the one we want. Distributions are still pretty right-skewed, but that's okay.
+         normDegree_scl_log = log(normDegree_scl),
+         normDegree_log = log(normDegree),
+         normStrength_prop = normStrength/max(normStrength),
+         normStrength_scl = (normStrength - mean(normStrength))/sd(normStrength),
+         normStrength_scl_log = log(normStrength_scl),
+         normStrength_log = log(normStrength))
+  
+metr %>%
+  ggplot(aes(x = as.factor(lubridate::ymd(int)), y = normDegree_scl, col = type, fill = type))+
+  geom_boxplot(outlier.size = 1,
+               position = position_dodge(width = 0), # so we get them on top of each other
+               alpha = 0.7)+
+  theme_classic()+
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        NULL)+
+  stat_summary(
+    fun = ~quantile(.x, 0.75),
+    geom = 'line',
+    linewidth = 1,
+    aes(group = type, colour = type),
+    position = position_dodge(width = 0) # this has to match the position_dodge for the boxplot
+  )+
+  ylab("Normalized degree (scaled)")+
+  xlab("Date")
+
+# Is there a negative relationship between the degree distributions in the two situations?
+medians <- metr %>%
+  group_by(ndays, type, int) %>%
+  summarize(normDegree_scl_med = median(normDegree_scl)) %>%
+  pivot_wider(id_cols = c(ndays, int), names_from = type, values_from = normDegree_scl_med) %>%
+  mutate(metric = "normDegree_scl") %>%
+  bind_rows(metr %>%
+              group_by(ndays, type, int) %>%
+              summarize(normStrength_scl_med = median(normStrength_scl)) %>%
+              pivot_wider(id_cols = c(ndays, int), names_from = type, values_from = normStrength_scl_med) %>% mutate(metric = "normStrength_scl"))
+
+medians %>%
+  ggplot(aes(x = feeding, y = flight))+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  facet_wrap(~metric, ncol = 1) # hmm, there seems to be no relationship between the two...
+```
+
+What about the number of interactions over time?
+
+We have to go back to the edge lists (not the graphs created from them) for this.
+
+```{r}
+load(here("data/edges_flight.Rda"))
+load(here("data/edges_feeding.Rda"))
+load(here("data/edges_roosting.Rda")) # xxx go back and get locations for these
+
+# Just taking the daily edge lists; we don't need the other time scales for now.
+fl_edges_days <- purrr::list_rbind(edges_flight[[1]]) %>% mutate(date = lubridate::date(minTimestamp))
+fe_edges_days <- purrr::list_rbind(edges_feeding[[1]]) %>% mutate(date = lubridate::date(minTimestamp))
+ro_edges_days <- purrr::list_rbind(edges_roosting[[1]]) %>% mutate(date = roost_date)
+
+fl_unique <- fl_edges_days %>% select(ID1, ID2, date) %>% distinct() %>%
+  group_by(date) %>% summarize(edges = n())
+fe_unique <- fe_edges_days %>% select(ID1, ID2, date) %>% distinct() %>%
+  group_by(date) %>% summarize(edges = n())
+ro_unique <- ro_edges_days %>% select(ID1, ID2, date) %>% distinct() %>%
+  group_by(date) %>% summarize(edges = n())
+```
+
+```{r}
+# Number of interactions per day
+ipd_fl <- fl_edges_days %>%
+  group_by(date) %>%
+  summarize(indivs_interacting = length(unique(ID1)) + length(unique(ID2)),
+            interactions = n(),
+            timegroups_interacting = length(unique(timegroup))) %>% mutate(situ = "flight") %>%
+  left_join(fl_unique, by = "date")
+
+ipd_fe <- fe_edges_days %>%
+  group_by(date) %>%
+  summarize(indivs_interacting = length(unique(ID1)) + length(unique(ID2)),
+            interactions = n(),
+            timegroups_interacting = length(unique(timegroup))) %>% mutate(situ = "feeding") %>%
+  left_join(fe_unique, by = "date")
+
+ipd_ro <- ro_edges_days %>%
+  group_by(date) %>%
+  summarize(indivs_interacting = length(unique(ID1)) + length(unique(ID2)),
+            interactions = n()) %>% mutate(situ = "roosting") %>%
+  left_join(ro_unique, by = "date")
+
+ipd <- bind_rows(ipd_fl, ipd_fe, ipd_ro)
+
+# To make these relative numbers, let's add the total number of individuals (whether involved in an interaction or not!) which we can get from metrics_indiv
+daily_n_indivs <- metrics_indiv %>%
+  filter(ndays == 1) %>%
+  select(int, n, type) %>%
+  distinct() %>%
+  rename("date" = int, "situ" = type, "n_total" = n) %>%
+  mutate(date = lubridate::ymd(date))
+
+ipd <- ipd %>%
+  left_join(daily_n_indivs) %>%
+  mutate(indivs_interacting_prop = indivs_interacting/n_total,
+         interactions_norm = interactions/n_total,
+         density = edges/((n_total*(n_total-1))/2))
+```
+
+Now make some plots
+
+```{r}
+ipd %>%
+  ggplot(aes(x = date, y = density, col = situ))+
+  geom_point()+
+  geom_line()+
+  theme_classic() # those are definitely feeding events!!
+
+# Dates with high numbers of co-feeding interactions
+ipd %>%
+  filter(situ == "feeding", density > 0.1) # The number of feeding events detected will depend on the threshold...
+```
+
+```{r}
+# Number of individuals interacting (absolute)
+ipd %>%
+  ggplot(aes(x = date, y = indivs_interacting, col = situ))+
+  geom_point()+
+  geom_line()+
+  theme_classic()
+
+# Number of individuals interacting (relative)
+ipd %>%
+  ggplot(aes(x = date, y = indivs_interacting_prop, col = situ))+
+  geom_point()+
+  geom_line()+
+  theme_classic()
+```
+
+# Feeding-flight correlation
+
+Is there a (negative? positive?) correlation between feeding and flight situations in terms of number of interactions?
+
+```{r}
+#| warning: false
+#| message: false
+wide <- ipd %>%
+  select(date, density, situ) %>%
+  pivot_wider(id_cols = date, names_from = situ, values_from = density)
+
+wide %>%
+  ggplot()+
+  geom_point(aes(x = log(flight), y = log(feeding)), col = "black")+
+  geom_smooth(method = "lm", aes(x = log(flight), y = log(feeding)), se = F)+
+  geom_smooth(method = "lm", aes(x = lag(log(flight)), y = log(feeding)), col = "blue", se = F)+
+  geom_smooth(method = "lm", aes(x = lag(log(flight), 2), y = log(feeding)), col = "purple", se = F)+
+  geom_smooth(method = "lm", aes(x = lag(log(flight), 3), y = log(feeding)), col = "red", se = F)+
+  geom_smooth(method = "lm", aes(x = lag(log(flight), 4), y = log(feeding)), col = "orange", se = F)+
+  theme_classic()
+# I'm sure I could do proper time series analysis on this and try to figure out how you actually predict spikes...
+```
+
+More investigation of correlation between feeding and flight metrics.
+
+Code for rolling correlations from [here](https://www.r-bloggers.com/2017/07/tidy-time-series-analysis-part-3-the-rolling-correlation/)
+
+```{r}
+library(tidyquant)
+library(corrr)
+library(TTR)
+
+# Static correlations
+static_corrs <- ipd %>%
+  select(date, situ, indivs_interacting_prop) %>%
+  pivot_wider(id_cols = "date", names_from = "situ", values_from = "indivs_interacting_prop") %>%
+  select(-c("date")) %>%
+  correlate()
+  
+# Pretty printing
+static_corrs %>%
+    shave(upper = F) # these are not highly correlated at at all.
+
+rolling_corrs <- ipd %>%
+  select(date, situ, indivs_interacting_prop) %>%
+  pivot_wider(id_cols = "date", names_from = "situ", values_from = "indivs_interacting_prop") %>%
+  select(-roosting) %>%
+  mutate(across(c("flight", "feeding"), ~replace_na(.x, 0))) %>%
+  tq_mutate_xy(
+    x = flight,
+    y = feeding,
+    mutate_fun = runCor,
+    # runCor args
+    n = 5, #5-day rolling window
+    use = "pairwise.complete.obs",
+    # tq_mutate args
+    col_rename = "rolling_corr_05"
+  ) %>%
+  tq_mutate_xy(
+    x = flight,
+    y = feeding,
+    mutate_fun = runCor,
+    # runCor args
+    n = 10, #10-day rolling window
+    use = "pairwise.complete.obs",
+    # tq_mutate args
+    col_rename = "rolling_corr_10"
+  ) %>%
+  tq_mutate_xy(
+    x = flight,
+    y = feeding,
+    mutate_fun = runCor,
+    # runCor args
+    n = 20, #20-day rolling window
+    use = "pairwise.complete.obs",
+    # tq_mutate args
+    col_rename = "rolling_corr_20"
+  ) %>%
+  pivot_longer(cols = contains("rolling_corr"), names_to = "days", values_to = "corr") %>%
+  mutate(days = str_remove(days, "rolling_corr_"))
+
+rolling_corrs %>%
+  ggplot(aes(x = date, y = corr, col = days))+
+  geom_point(alpha = 0.5)+
+  geom_line()+
+  scale_color_manual(name = "Days", values = c("skyblue3", "black", "brown"))+
+  theme_tq()+
+  ylab("Rolling correlation")+
+  xlab("Date")
+```

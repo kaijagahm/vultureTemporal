@@ -1,0 +1,86 @@
+---
+title: "04_timeseries_visualize"
+format: html
+editor: visual
+---
+
+Number of interactions etc. over time
+
+```{r}
+library(here)
+library(tidyverse)
+library(vultureUtils)
+```
+
+We have to go back to the edge lists (not the graphs created from them) for this.
+
+```{r}
+load(here("data/edges_flight.Rda"))
+load(here("data/edges_feeding.Rda"))
+load(here("data/edges_roosting.Rda")) # xxx go back and get locations for these
+
+# Just taking the daily edge lists; we don't need the other time scales for now.
+fl_edges_days <- purrr::list_rbind(edges_flight[[1]]) %>% mutate(date = lubridate::date(minTimestamp))
+fe_edges_days <- purrr::list_rbind(edges_feeding[[1]]) %>% mutate(date = lubridate::date(minTimestamp))
+ro_edges_days <- purrr::list_rbind(edges_roosting[[1]]) %>% mutate(date = roost_date)
+
+fl_unique <- fl_edges_days %>% select(ID1, ID2, date) %>% distinct() %>%
+  group_by(date) %>% summarize(edges = n())
+fe_unique <- fe_edges_days %>% select(ID1, ID2, date) %>% distinct() %>%
+  group_by(date) %>% summarize(edges = n())
+ro_unique <- ro_edges_days %>% select(ID1, ID2, date) %>% distinct() %>%
+  group_by(date) %>% summarize(edges = n())
+```
+
+```{r}
+# Number of interactions per day
+ipd_fl <- fl_edges_days %>%
+  group_by(date) %>%
+  summarize(indivs_interacting = length(unique(ID1)) + length(unique(ID2)),
+            interactions = n(),
+            timegroups_interacting = length(unique(timegroup))) %>% mutate(situ = "flight") %>%
+  left_join(fl_unique, by = "date")
+
+ipd_fe <- fe_edges_days %>%
+  group_by(date) %>%
+  summarize(indivs_interacting = length(unique(ID1)) + length(unique(ID2)),
+            interactions = n(),
+            timegroups_interacting = length(unique(timegroup))) %>% mutate(situ = "feeding") %>%
+  left_join(fe_unique, by = "date")
+
+ipd_ro <- ro_edges_days %>%
+  group_by(date) %>%
+  summarize(indivs_interacting = length(unique(ID1)) + length(unique(ID2)),
+            interactions = n()) %>% mutate(situ = "roosting") %>%
+  left_join(ro_unique, by = "date")
+
+ipd <- bind_rows(ipd_fl, ipd_fe, ipd_ro)
+
+# To make these relative numbers, let's add the total number of individuals (whether involved in an interaction or not!) which we can get from metrics_indiv
+daily_n_indivs <- metrics_indiv %>%
+  filter(ndays == 1) %>%
+  select(int, n, type) %>%
+  distinct() %>%
+  rename("date" = int, "situ" = type, "n_total" = n) %>%
+  mutate(date = lubridate::ymd(date))
+
+ipd <- ipd %>%
+  left_join(daily_n_indivs) %>%
+  mutate(indivs_interacting_prop = indivs_interacting/n_total,
+         interactions_norm = interactions/n_total,
+         density = edges/((n_total*(n_total-1))/2))
+```
+
+Now make some plots
+
+```{r}
+ipd %>%
+  ggplot(aes(x = date, y = density, col = situ))+
+  geom_point()+
+  geom_line()+
+  theme_classic() # those are definitely feeding events!!
+
+# Dates with high numbers of co-feeding interactions
+ipd %>%
+  filter(situ == "feeding", density > 0.1) # The number of feeding events detected will depend on the threshold...
+```
