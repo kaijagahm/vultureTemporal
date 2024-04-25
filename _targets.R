@@ -9,7 +9,7 @@ library(targets)
 
 # Set target options:
 tar_option_set(
-  packages = c("tibble", "purrr", "sf", "igraph", "muxViz", "Matrix") # Packages that your targets need for their tasks.
+  packages = c("tibble", "purrr", "sf", "igraph", "muxViz", "Matrix", "dplyr") # Packages that your targets need for their tasks.
   # format = "qs", # Optionally set the default storage format. qs is fast.
   #
   # Pipelines that take a long time to run may benefit from
@@ -52,38 +52,79 @@ tar_source()
 list(
   # Reducibility analysis
   ## data ingest
-  tar_target(data_cut_file, "data/data_cut.Rda", format = "file"),
-  tar_target(data_cut, read_from_path(data_cut_file)),
+  tar_target(cols_to_remove, c("tag_id", "sensor_type_id", "acceleration_raw_x", "acceleration_raw_y", "acceleration_raw_z", "barometric_height", "battery_charge_percent", "battery_charging_current", "external_temperature", "gps_hdop", "gps_satellite_count", "gps_time_to_fix", "import_marked_outlier", "light_level", "magnetic_field_raw_x", "magnetic_field_raw_y", "magnetic_field_raw_z", "ornitela_transmission_protocol", "tag_voltage", "update_ts", "visible", "deployment_id", "event_id", "sensor_type", "tag_local_identifier", "location_long.1", "location_lat.1", "optional", "sensor", "earliest_date_born", "exact_date_of_birth", "group_id", "individual_id", "latest_date_born", "local_identifier", "marker_id", "mates", "mortality_date", "mortality_latitude", "mortality_type", "nick_name", "offspring", "parents", "ring_id", "siblings", "taxon_canonical_name", "taxon_detail", "number_of_events", "number_of_deployments")),
+  tar_target(alldata_file, "data/fromMvmtSoc/downsampled_10min_forSocial.Rda", format = "file"),
+  tar_target(alldata, read_from_path(alldata_file)),
+  tar_target(summer2023data, prepare_data(alldata, "2023_summer", cols_to_remove)),
+  tar_target(timewindows, c(1, 5, 10, 25, 50)),
+  tar_target(data_cut, cut_data(summer2023data, timewindows)),
+  tar_target(roosts_file, "data/roosts.Rda", format = "file"),
+  tar_target(roosts, read_from_path(roosts_file)),
   tar_target(roostPolygons_file, "data/raw/roosts50_kde95_cutOffRegion.kml", format = "file"),
   tar_target(roostPolygons, st_read(roostPolygons_file)),
+  tar_target(roosts_cut, cut_roosts(roosts, 9, timewindows)),
   ## Prepare edges
   tar_target(flight_sris, map(data_cut, ~get_flight_sris(.x, roostPolygons))),
   tar_target(feeding_sris, map(data_cut, ~get_feeding_sris(.x, roostPolygons))),
+  tar_target(roost_sris, map(roosts_cut, ~get_roost_sris(.x))),
   tar_target(allvertices, map(data_cut, ~unique(list_rbind(.x)$Nili_id))),
   tar_target(nnodes, map_dbl(allvertices, length)),
   ## Make graphs
   tar_target(graphs_flight, map2(flight_sris, allvertices, ~get_graphs(.x, .y))),
   tar_target(graphs_feeding, map2(feeding_sris, allvertices, ~get_graphs(.x, .y))),
+  tar_target(graphs_roosting, map2(roost_sris, allvertices, ~get_graphs(.x, .y))),
   tar_target(tensors_flight, map(graphs_flight, get_node_tensor)),
   tar_target(tensors_feeding, map(graphs_feeding, get_node_tensor)),
-  tar_target(nlayers, map_dbl(tensors_flight, length)),
-  tar_target(layer_tensor, map(nlayers, get_layer_tensor)),
-  tar_target(multis_flight, pmap(.l = list(tensors_flight, layer_tensor, nlayers, nnodes),
+  tar_target(tensors_roosting, map(graphs_roosting, get_node_tensor)),
+  tar_target(nlayers_flight, map_dbl(tensors_flight, length)),
+  tar_target(nlayers_feeding, map_dbl(tensors_feeding, length)),
+  tar_target(nlayers_roosting, map_dbl(tensors_roosting, length)),
+  tar_target(layer_tensor_flight, map(nlayers_flight, get_layer_tensor)),
+  tar_target(layer_tensor_feeding, map(nlayers_feeding, get_layer_tensor)),
+  tar_target(layer_tensor_roosting, map(nlayers_roosting, get_layer_tensor)),
+  tar_target(multis_flight, pmap(.l = list(tensors_flight, 
+                                           layer_tensor_flight, 
+                                           nlayers_flight, nnodes),
                                  .f = get_multiplex)),
-  tar_target(multis_feeding, pmap(.l = list(tensors_feeding, layer_tensor, nlayers, nnodes),
+  tar_target(multis_feeding, pmap(.l = list(tensors_feeding, 
+                                            layer_tensor_feeding, 
+                                            nlayers_feeding, nnodes),
                                   .f = get_multiplex)),
-  tar_target(ag_flight, pmap(.l = list(multis_flight, nlayers, nnodes),
+  tar_target(multis_roosting, pmap(.l = list(tensors_roosting, 
+                                             layer_tensor_roosting, 
+                                             nlayers_roosting, nnodes),
+                                  .f = get_multiplex)),
+  tar_target(ag_flight, pmap(.l = list(multis_flight, nlayers_flight, nnodes),
                              .f = get_aggregate)),
-  tar_target(ag_feeding, pmap(.l = list(multis_feeding, nlayers, nnodes),
+  tar_target(ag_feeding, pmap(.l = list(multis_feeding, nlayers_feeding, nnodes),
                               .f = get_aggregate)),
-  tar_target(red_flight_cat, pmap(.l = list(graphs_flight, nlayers, nnodes),
+  tar_target(ag_roosting, pmap(.l = list(multis_roosting, nlayers_roosting, nnodes),
+                               .f = get_aggregate)),
+  tar_target(red_flight_cat, pmap(.l = list(graphs_flight, nlayers_flight, nnodes),
                                   .f = ~get_reducibility(..1, ..2, ..3, 
                                                          type = "Categorical"))),
-  tar_target(red_flight_ord, pmap(.l = list(graphs_flight, nlayers, nnodes),
+  tar_target(red_flight_ord, pmap(.l = list(graphs_flight, nlayers_flight, nnodes),
                                   .f = ~get_reducibility(..1, ..2, ..3, 
                                                          type = "Ordinal"))),
-  tar_target(red_feeding_cat, pmap(.l = list(graphs_feeding, nlayers, nnodes),
+  tar_target(red_feeding_cat, pmap(.l = list(graphs_feeding, nlayers_feeding, nnodes),
                                    .f = ~get_reducibility(..1, ..2, ..3, 
-                                                          type = "Categorical"))) # this errors out, presumably because we have empty graphs. Need to make them not empty by attaching the vertices.
+                                                          type = "Categorical"))),
+  tar_target(red_feeding_ord, pmap(.l = list(graphs_feeding, nlayers_feeding, nnodes),
+                                   .f = ~get_reducibility(..1, ..2, ..3, 
+                                                          type = "Ordinal"))),
+  tar_target(red_roosting_cat, pmap(.l = list(graphs_roosting, nlayers_roosting, nnodes),
+                                   .f = ~get_reducibility(..1, ..2, ..3, 
+                                                          type = "Categorical"))),
+  tar_target(red_roosting_ord, pmap(.l = list(graphs_roosting, nlayers_roosting, nnodes),
+                                   .f = ~get_reducibility(..1, ..2, ..3, 
+                                                          type = "Ordinal"))),
+  tar_target(curves, purrr::list_rbind(list(
+    get_reduc_curves_df(red_flight_cat, timewindows, "categorical", "flight"),
+    get_reduc_curves_df(red_flight_ord, timewindows, "ordinal", "flight"),
+    get_reduc_curves_df(red_feeding_cat, timewindows, "categorical", "feeding"),
+    get_reduc_curves_df(red_feeding_ord, timewindows, "ordinal", "feeding"),
+    get_reduc_curves_df(red_roosting_cat, timewindows, "categorical", "roosting"),
+    get_reduc_curves_df(red_roosting_ord, timewindows, "ordinal", "roosting")
+  )))
 )
 

@@ -6,6 +6,65 @@ read_from_path <- function(path){
   get(data_name)
 }
 
+prepare_data <- function(dataset, szn, cols_to_remove){
+  # Convert to SF
+  sfdata <- purrr::map(dataset, ~sf::st_as_sf(.x, coords = c("location_long", "location_lat"), crs = "WGS84", remove = F))
+  
+  # Put all the seasons together and remove the columns we don't need
+  sfdata <- purrr::list_rbind(sfdata) %>%
+    dplyr::select(-any_of(cols_to_remove)) 
+  
+  # For our own sanity, let's just work with a single season
+  szndata <- sfdata %>%
+    filter(seasonUnique == szn)
+  
+  return(szndata)
+}
+
+cutdates <- function(vec, days){
+  # get min and max dates in the vector
+  min <- min(vec)
+  max <- max(vec)
+  
+  # determine how many cutpoints we'll need
+  ncutpoints <- ceiling(as.numeric(max-min)/days) + 1
+  
+  # create the vector of cutpoints
+  cutpoints <- seq(from = min, by = days, length.out = ncutpoints)
+  
+  # cut the dates according to the cutpoints. Intervals will have the format [low, high).
+  out <- cut(vec, breaks = cutpoints, include.lowest = T, right = F)
+  return(out)
+}
+
+cut_data <- function(data, timewindows){
+  data_cut <- purrr::map(timewindows, ~{
+    data %>% dplyr::mutate(int = cutdates(dateOnly, .x))
+  })
+
+  # Okay, now we have the data classified into intervals, time to split each one into a list.
+  # There is an annoying thing here: when you have an sf object and you run group_by() %>% group_split() on it, the resulting sub-objects do not keep their sf status. They turn into regular data frames. Grrrrr! So I had to add a step to turn each of them back into an sf object.
+  data_cut <- purrr::map(data_cut, ~.x %>% 
+                    dplyr::group_by(int) %>% 
+                    dplyr::group_split() %>%
+                    purrr::map(., ~sf::st_as_sf(.x, coords = c("location_long", "location_lat"), crs = "WGS84", remove = F)))
+  return(data_cut)
+}
+
+cut_roosts <- function(roosts, sznnumber, timewindows){
+  rsts <- roosts[[sznnumber]]
+  
+  roosts_cut <- map(timewindows, ~{
+    rsts %>% mutate(int = cutdates(roost_date, .x))
+  })
+  
+  roosts_cut <- map(roosts_cut, ~.x %>% 
+                      group_by(int) %>% 
+                      group_split() %>%
+                      map(., ~sf::st_as_sf(.x, coords = c("location_long", "location_lat"), crs = "WGS84", remove = F)))
+  return(roosts_cut)
+}
+
 get_flight_sris <- function(datalist, roostPolygons){
   flight_sri <- furrr::future_map(datalist, ~{
     library(sf)
@@ -27,6 +86,18 @@ get_feeding_sris <- function(datalist, roostPolygons){
       dplyr::rename("weight" = "sri")
   })
   return(feeding_sri_2)
+}
+
+get_roost_sris <- function(roostlist){
+  roost_sri <- furrr::future_map(roostlist, ~{
+    library(sf)
+    vultureUtils::getRoostEdges(.x, mode = "distance", distThreshold = 100, dateCol = "roost_date", idCol = "Nili_id", return = "sri")
+  })
+  roost_sri_2 <- purrr::map(roost_sri, ~{
+    .x %>% dplyr::filter(sri > 0 & !is.na(sri)) %>%
+      dplyr::rename("weight" = "sri")
+  })
+  return(roost_sri_2)
 }
 
 get_graphs <- function(sris, verts){
@@ -193,4 +264,14 @@ get_heatmap <- function(red, nlayers){
                                            list(layernames, layernames))
   heat <- gplots::heatmap.2(mat_toplot, trace = "none", dendrogram = "row")
   return(heat)
+}
+
+get_reduc_curves_df <- function(red, timewindows, type, situ){
+  outdf <- map2(red, timewindows, ~{
+    df <- setNames(as.data.frame(.x$gQualityFunction), "ent") %>%
+      dplyr::mutate(timewindow = .y, step = 1:nrow(.), type = type, situ = situ)
+  }) %>% purrr::list_rbind() %>%
+  dplyr::mutate(timestep = 1+(step-1)*timewindow) %>%
+  dplyr::mutate(timewindow = factor(as.character(timewindow)))
+  return(outdf)
 }
