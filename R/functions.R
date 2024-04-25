@@ -139,8 +139,7 @@ get_reducibility <- function(graphs, nlayers, nnodes, type, method = "ward.D2"){
   return(red)
 }
 
-GetMultilayerReducibility_KG <- function(SupraAdjacencyMatrix, Layers, Nodes, Method, Type) 
-{
+GetMultilayerReducibility_KG <- function(SupraAdjacencyMatrix, Layers, Nodes, Method, Type){
   NodesTensor <- SupraAdjacencyToNodesTensor(SupraAdjacencyMatrix, 
                                              Layers, Nodes)
   if (Layers > 1) {
