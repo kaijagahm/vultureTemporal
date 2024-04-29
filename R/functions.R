@@ -37,6 +37,13 @@ cutdates <- function(vec, days){
   return(out)
 }
 
+cuttimes <- function(data, mins){
+  interval <- paste0(mins, " min")
+  out <- data %>% dplyr::mutate(int = cut.POSIXt(timestamp, interval)) %>%
+    group_by(int) %>% group_split() %>% purrr::map(., ~sf::st_as_sf(.x, coords = c("location_long", "location_lat"), crs = "WGS84", remove = F))
+  return(out)
+}
+
 cut_data <- function(data, timewindows){
   data_cut <- purrr::map(timewindows, ~{
     data %>% dplyr::mutate(int = cutdates(dateOnly, .x))
@@ -66,24 +73,32 @@ cut_roosts <- function(roosts, sznnumber, timewindows){
 }
 
 get_flight_sris <- function(datalist, roostPolygons){
-  flight_sri <- furrr::future_map(datalist, ~{
+  flight_sri <- purrr::map(datalist, ~{
     library(sf)
     vultureUtils::getFlightEdges(.x, roostPolygons = roostPolygons, distThreshold = 1000, idCol = "Nili_id", return = "sri")}, .progress = T)
   flight_sri_2 <- purrr::map(flight_sri, ~{
+    if(!("sri" %in% names(.x))){
+      .x$sri <- numeric(0)
+    }
     .x %>% dplyr::filter(sri > 0 & !is.na(sri)) %>%
-      dplyr::rename("weight" = "sri")
+      dplyr::rename("weight" = "sri") %>%
+      dplyr::select(ID1, ID2, weight)
   })
   return(flight_sri_2)
 }
 
 get_feeding_sris <- function(datalist, roostPolygons){
-  feeding_sri <- furrr::future_map(datalist, ~{
+  feeding_sri <- purrr::map(datalist, ~{
     library(sf)
     vultureUtils::getFeedingEdges(.x, roostPolygons = roostPolygons, distThreshold = 50,
                                   idCol = "Nili_id", return = "sri")}, .progress = T)
   feeding_sri_2 <- purrr::map(feeding_sri, ~{
+    if(!("sri" %in% names(.x))){
+      .x$sri <- numeric(0)
+    }
     .x %>% dplyr::filter(sri > 0 & !is.na(sri)) %>%
-      dplyr::rename("weight" = "sri")
+      dplyr::rename("weight" = "sri") %>%
+      dplyr::select(ID1, ID2, weight)
   })
   return(feeding_sri_2)
 }
@@ -151,8 +166,9 @@ GetMultilayerReducibility_KG <- function(SupraAdjacencyMatrix, Layers, Nodes, Me
         SingleLayerEntropy[i] <- GetRenyiEntropyFromAdjacencyMatrix(NodesTensor[[i]], 
                                                                     1)
       }
-      if (SingleLayerEntropy[i] < 1e-12 & !is.na(SingleLayerEntropy[i])) 
+      if (SingleLayerEntropy[i] < 1e-12 & !is.na(SingleLayerEntropy[i])){
         SingleLayerEntropy[i] <- 0
+      } 
       print(paste("DEBUG:", i, SingleLayerEntropy[i]))
     }
     cat("Calculating JSD\n")
@@ -212,8 +228,7 @@ GetMultilayerReducibility_KG <- function(SupraAdjacencyMatrix, Layers, Nodes, Me
         entropyA <- SingleLayerEntropy[-MergeMatrix[m, 
                                                     1]]
         SingleLayerEntropy[-MergeMatrix[m, 1]] <- 0
-      }
-      else {
+      }else {
         A <- MergedTensor[[MergeMatrix[m, 1]]]
         entropyA <- MergedEntropy[[MergeMatrix[m, 1]]]
         MergedEntropy[[MergeMatrix[m, 1]]] <- 0
@@ -223,15 +238,19 @@ GetMultilayerReducibility_KG <- function(SupraAdjacencyMatrix, Layers, Nodes, Me
         entropyB <- SingleLayerEntropy[-MergeMatrix[m, 
                                                     2]]
         SingleLayerEntropy[-MergeMatrix[m, 2]] <- 0
-      }
-      else {
+      }else {
         B <- MergedTensor[[MergeMatrix[m, 2]]]
         entropyB <- MergedEntropy[[MergeMatrix[m, 2]]]
         MergedEntropy[[MergeMatrix[m, 2]]] <- 0
       }
       MergedTensor[[m]] <- A + B
-      tmpLayerEntropy <- GetRenyiEntropyFromAdjacencyMatrix(MergedTensor[[m]], 
-                                                            1)
+      #XXX KG addition for debugging the case where they are all zero
+      if(all(MergedTensor[[m]]@p == 0)){
+        tmpLayerEntropy <- 0
+      }else{
+        tmpLayerEntropy <- GetRenyiEntropyFromAdjacencyMatrix(MergedTensor[[m]], 
+                                                              1)
+      }
       if (abs(tmpLayerEntropy) < 1e-12) 
         tmpLayerEntropy <- 0
       MergedEntropy[[m]] <- tmpLayerEntropy
