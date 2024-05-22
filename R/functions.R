@@ -80,7 +80,7 @@ get_flight_sris <- function(datalist, roostPolygons){
     if(!("sri" %in% names(.x))){
       .x$sri <- numeric(0)
     }
-    .x %>% dplyr::filter(sri > 0 & !is.na(sri)) %>%
+    .x %>% dplyr::filter(!is.na(sri)) %>%
       dplyr::rename("weight" = "sri") %>%
       dplyr::select(ID1, ID2, weight)
   })
@@ -96,7 +96,7 @@ get_feeding_sris <- function(datalist, roostPolygons){
     if(!("sri" %in% names(.x))){
       .x$sri <- numeric(0)
     }
-    .x %>% dplyr::filter(sri > 0 & !is.na(sri)) %>%
+    .x %>% dplyr::filter(!is.na(sri)) %>%
       dplyr::rename("weight" = "sri") %>%
       dplyr::select(ID1, ID2, weight)
   })
@@ -109,7 +109,7 @@ get_roost_sris <- function(roostlist){
     vultureUtils::getRoostEdges(.x, mode = "distance", distThreshold = 100, dateCol = "roost_date", idCol = "Nili_id", return = "sri")
   })
   roost_sri_2 <- purrr::map(roost_sri, ~{
-    .x %>% dplyr::filter(sri > 0 & !is.na(sri)) %>%
+    .x %>% dplyr::filter(!is.na(sri)) %>%
       dplyr::rename("weight" = "sri")
   })
   return(roost_sri_2)
