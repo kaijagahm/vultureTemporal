@@ -218,6 +218,40 @@ estavan_salient %>%
 
 # I wonder: is the strength of the relationship related to the number of days with data? to the number of days with a non-zero sri?
 # I wonder: what does the cumulative number of relationships look like when you look at number of non-zero days vs. number of relationships, for a given individual?
-## We can actually answer that question with a cumulative sum graph for each individual. Just have to be careful when aggregating by individual, since the information right now is dyad-level.
-friends_cumsum <- all %>%
-  group_by()
+## We can actually answer that question with a cumulative sum graph for each individual. Just have to be careful when aggregating by individual, since the information right now is dyad-level. In order to make the data individual-level, I think we need to double it and flip it around...
+reversed <- all[,c(2, 1, 3:ncol(all))]
+names(reversed)[1:2] <- c("ID1", "ID2")
+# note that I am *not* reassigning the "dyad" column because I want duplicate rows to show up as duplicate... I think... or I might just end up ignoring the dyad column... we'll see.
+allall <- bind_rows(all, reversed)
+
+thresholds <- 0:max(all$period)
+friends_cumsum <- map(thresholds, ~allall %>%
+                        group_by(ID1, situ) %>%
+                        filter(n_dyad_situ_nonzero >= .x) %>%
+                        summarize(nfriends = length(unique(ID2)), .groups = "drop") %>%
+                        mutate(thresh = .x)) %>% purrr::list_rbind()
+
+# now let's plot some curves
+# picking Jill randomly
+Jill <- friends_cumsum %>% filter(ID1 == "Jill")
+Jill %>%
+  ggplot(aes(x = thresh, y = nfriends, col = situ))+
+  geom_point()+
+  geom_line()+
+  theme_minimal()
+
+# What about with boxplots?
+friends_cumsum %>%
+  mutate(thresh = factor(thresh, levels = min(thresh):max(thresh))) %>%
+  ggplot(aes(x = thresh, y = nfriends))+
+  geom_boxplot(fill = "gray30")+
+  facet_wrap(~situ)+
+  theme_minimal()
+
+# Or with a bunch of lines instead?
+friends_cumsum %>%
+  ggplot(aes(x = thresh, y = nfriends, group = ID1))+
+  geom_line(alpha = 0.2)+
+  theme_minimal()+
+  facet_wrap(~situ)
+# I have a feeling there's a better way to look at this, involving rank order of friends, but I'm not thinking of it right now. Time to move on, and come back to this when I'm fresher.
