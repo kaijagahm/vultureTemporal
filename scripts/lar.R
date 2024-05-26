@@ -84,6 +84,17 @@ df %>%
   theme(panel.grid.major.x = element_blank())+
   geom_smooth() # now that's a tad more interesting! a clear pattern is emerging.
 
+# What if we look at the same but for 0's?
+df %>%
+  filter(yn == 0) %>%
+  ggplot(aes(x = lead, y = log(prop1)))+
+  geom_point(alpha = 0.1, pch = 1)+
+  theme_minimal()+
+  theme(panel.grid.major.x = element_blank())+
+  geom_smooth() # hmm, okay, so there's just a general downward trend over the course of the season. How do we account for that? Need to do some kind of permutation but I'm not sure what kind.
+
 # Next to do: do this on different time scales (hourly should show day/night patterns at the very least, 5-day increments, etc.)
 # Also evaluate whether this measure makes sense
 # Is there a way to make a weighted version of this instead of just y/n?
+# Maybe this still isn't really LAR. This is more "given they interact, what is the probability that they interact the next day?" instead of "given they interact, what is the probability that B is one of A's partners the next day?"--which should account for overall lower association rates the following day. Let's try that, both weighted and unweighted, next.
+
