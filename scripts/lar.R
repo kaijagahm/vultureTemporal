@@ -31,9 +31,16 @@ oneday <- flight_sris[[1]]
 days <- purrr::imap(oneday, ~.x %>% mutate(day = .y)) %>% purrr::list_rbind() %>%
   mutate(dyad = paste(ID1, ID2, sep = ", "))
 
+alldyads <- unique(days$dyad)
+alldays <- 1:max(days$day)
+alldyaddays <- expand_grid("dyad" = alldyads, "day" = alldays)
+days <- alldyaddays %>% left_join(days) %>% # this adds in all the NA's for the dyads that didn't interact on certain days.
+  mutate(ID1 = str_extract(dyad, ".*(?=\\,)"),
+         ID2 = str_extract(dyad, "(?<=\\,\\s).*"))
+
 firstinteractions <- days %>%
   group_by(dyad) %>%
-  filter(weight > 0) %>%
+  filter(weight > 0 & !is.na(weight)) %>%
   arrange(day, .by_group = T) %>%
   slice(1) %>%
   ungroup()
@@ -42,59 +49,63 @@ firstinteractions <- days %>%
 
 # What if we binarize all of this? So make it just a sequence of 0's and 1's, which I think Elvira already did?
 days_bin <- days %>%
-  mutate(yn = ifelse(weight > 0, 1, 0)) %>%
+  mutate(yn = case_when(is.na(weight) ~ NA,
+                        weight > 0 & !is.na(weight) ~ 1,
+                        weight == 0 & !is.na(weight) ~ 0))%>%
   select(ID1, ID2, dyad, day, yn)
 
 leads <- 1:50
-
-df <- map(leads, ~days_bin %>%
-             group_by(dyad) %>%
-             mutate(lead_value = lead(yn, .x)) %>%
-             group_by(ID1, yn) %>%
-             summarize(prop1 = sum(lead_value == 1, na.rm = T)/n(),
-                       n = sum(!is.na(lead_value)),
-                       .groups = "drop")) %>%
-  purrr::list_rbind(names_to = "lead") %>%
-  relocate(lead, .after = "yn")
-
-# Visualize as a boxplot  
-df %>%
-  filter(yn == 1) %>%
-  ggplot(aes(x = factor(lead), y = prop1))+
-  geom_boxplot(outlier.size = 0.5)+
-  theme_minimal()+
-  theme(panel.grid.major.x = element_blank())+
-  geom_smooth()
-
-# Visualize as numeric
-df %>%
-  filter(yn == 1) %>%
-  ggplot(aes(x = lead, y = prop1))+
-  geom_point(alpha = 0.1, pch = 1)+
-  theme_minimal()+
-  theme(panel.grid.major.x = element_blank())+
-  geom_smooth() # okay, so we're noticing that it goes down and seems to level out a bit, but notably, the probability of reassocation was already really really low! Even 1 day later, the average probability is only 0.05 (that's conditional probablity: p(yes at t + 1)|(yes at t)). Of course we should keep in  mind that p is already very very low on any given day for flight. Roosting might be more informative here, or different windows. 
-
-# what about putting the y on a log scale?
-df %>%
-  filter(yn == 1) %>%
-  ggplot(aes(x = lead, y = log(prop1)))+
-  geom_point(alpha = 0.1, pch = 1)+
-  theme_minimal()+
-  theme(panel.grid.major.x = element_blank())+
-  geom_smooth() # now that's a tad more interesting! a clear pattern is emerging.
-
-# What if we look at the same but for 0's?
-df %>%
-  filter(yn == 0) %>%
-  ggplot(aes(x = lead, y = log(prop1)))+
-  geom_point(alpha = 0.1, pch = 1)+
-  theme_minimal()+
-  theme(panel.grid.major.x = element_blank())+
-  geom_smooth() # hmm, okay, so there's just a general downward trend over the course of the season. How do we account for that? Need to do some kind of permutation but I'm not sure what kind.
 
 # Next to do: do this on different time scales (hourly should show day/night patterns at the very least, 5-day increments, etc.)
 # Also evaluate whether this measure makes sense
 # Is there a way to make a weighted version of this instead of just y/n?
 # Maybe this still isn't really LAR. This is more "given they interact, what is the probability that they interact the next day?" instead of "given they interact, what is the probability that B is one of A's partners the next day?"--which should account for overall lower association rates the following day. Let's try that, both weighted and unweighted, next.
+
+# Let's try reinterpreting: given that A and B interact on a given day, what is the probability of B being one of A's associates after a time lag t?
+# XXX need to do this with the data doubled since we're looking on an individual basis--LAR's won't be symmetrical for a given dyad.
+daily_strengths <- days_bin %>%
+  group_by(ID1, day) %>%
+  summarize(str_day = sum(yn == 1, na.rm = T),
+            n_day = sum(!is.na(yn)))
+
+prob_assoc <- days_bin %>%
+  arrange(dyad, day) %>%
+  group_by(dyad) %>%
+  mutate(lead_value = lead(yn, 1),
+         lead_day = lead(day, 1)) %>%
+  ungroup() %>%
+  left_join(daily_strengths, by = c("ID1", "lead_day" = "day")) %>%
+  rename("str_lead_day_id1" = "str_day",
+         "n_lead_day_id1" = "n_day") %>%
+  mutate(prob_assoc = lead_value/str_lead_day_id1) %>%
+  filter(yn == 1)
+
+prob_assoc %>%
+  filter(!is.na(prob_assoc)) %>%
+  group_by(dyad) %>%
+  summarize(n = n(),
+            mnprob = mean(prob_assoc),
+            sdprob = sd(prob_assoc)) %>%
+  filter(n > 4) %>%
+  arrange(desc(mnprob)) %>%
+  mutate(dyad = factor(dyad, levels = as.character(dyad))) %>%
+  ggplot(aes(x = dyad, y = mnprob))+
+  geom_point()+
+  geom_errorbar(aes(ymax = mnprob + sdprob,
+                    ymin = mnprob - sdprob),
+                width = 0)+
+  theme_minimal()+
+  theme(axis.text.x = element_blank(),
+        panel.grid.major.x = element_blank())+
+  ylab("Prob randomly-selected assocate \nof A is B after 1 day")+
+  xlab("Dyad")+
+  labs(caption = "(includes dyads with >= 5 valid lags)")+
+  geom_hline(aes(yintercept = 0), lty = 3, col = "red")
+# There is a lot of missing data here--many dyads do not have re-association data
+# Obviously going below 0 doesn't make sense, oops, should do this as a boxplot instead.
+# How does jackknifing fit in here?
+# Is this even the right measure?
+# Can we make it weighted?
+
+
 
