@@ -65,6 +65,17 @@ periods_bin_all <- periods_bin_all %>%
   mutate(dyad_absolute = paste(min(ID1, ID2), max(ID1, ID2), sep = ", ")) %>%
   ungroup()
 
+## weighted, non-binary:
+periods_rev <- periods %>% select(ID1, ID2, dyad, period, weight)
+names(periods_rev)[1:2] <- c("ID2", "ID1")
+periods_rev <- periods_rev %>%
+  mutate(dyad = paste(ID1, ID2, sep = ", "))
+periods_all <- bind_rows(periods, periods_rev) # add on the opposite dyads
+periods_all <- periods_all %>%
+  rowwise() %>%
+  mutate(dyad_absolute = paste(min(ID1, ID2), max(ID1, ID2), sep = ", ")) %>%
+  ungroup()
+
 # Also evaluate whether this measure makes sense
 # Is there a way to make a weighted version of this instead of just y/n?
 # Maybe this still isn't really LAR. This is more "given they interact, what is the probability that they interact the next day?" instead of "given they interact, what is the probability that B is one of A's partners the next day?"--which should account for overall lower association rates the following day. Let's try that, both weighted and unweighted, next.
@@ -75,6 +86,11 @@ period_strengths <- periods_bin_all %>%
   group_by(ID1, period) %>%
   summarize(str_period = sum(yn == 1, na.rm = T),
             n_period = sum(!is.na(yn)))
+
+period_strengths_w <- periods_all %>%
+  group_by(ID1, period) %>%
+  summarize(str_period = sum(weight, na.rm = T),
+            n_period = sum(!is.na(weight)))
 
 prob_assoc <- periods_bin_all %>%
   arrange(dyad, period) %>%
@@ -88,7 +104,27 @@ prob_assoc <- periods_bin_all %>%
   mutate(prob_assoc = lead_value/str_lead_period_id1) %>%
   filter(yn == 1)
 
+prob_assoc_w <- periods_all %>%
+  arrange(dyad, period) %>%
+  group_by(dyad) %>%
+  mutate(lead_value = lead(weight, 1),
+         lead_period = lead(period, 1)) %>%
+  ungroup() %>%
+  left_join(period_strengths_w, by = c("ID1", "lead_period" = "period")) %>%
+  rename("str_lead_period_id1" = "str_period",
+         "n_lead_period_id1" = "n_period") %>%
+  mutate(prob_assoc = lead_value/str_lead_period_id1) %>%
+  filter(weight > 0 & !is.na(weight))
+
 levels <- prob_assoc %>%
+  filter(!is.na(prob_assoc)) %>%
+  group_by(dyad) %>%
+  filter(n() >= 7) %>%
+  summarize(mn = mean(prob_assoc)) %>% 
+  arrange(desc(mn)) %>%
+  pull(dyad)
+
+levels_w <- prob_assoc_w %>%
   filter(!is.na(prob_assoc)) %>%
   group_by(dyad) %>%
   filter(n() >= 7) %>%
@@ -107,14 +143,28 @@ prob_assoc %>%
   theme(panel.grid.major.x = element_blank(),
         axis.text.x = element_blank(),
         legend.position = "none")+
-  ylab("Prob randomly-selected assocate \nof A is B after 5 days")+
+  ylab("Prob randomly-selected assocate \nof A is B after 5 days (binary)")+
   xlab("Dyad")+
   labs(caption = "(includes dyads with >= 6 valid lags)")
 # Note that the dyads are not always next to each other, because these relationships are not symmetrical.
 
+prob_assoc_w %>%
+  filter(!is.na(prob_assoc)) %>%
+  group_by(dyad) %>%
+  filter(n() >=7) %>%
+  mutate(dyad = factor(dyad, levels = levels)) %>%
+  ggplot(aes(x = dyad, y = prob_assoc, fill = factor(dyad_absolute)))+
+  geom_boxplot(outlier.size = 0.5)+
+  theme_minimal()+
+  theme(panel.grid.major.x = element_blank(),
+        axis.text.x = element_blank(),
+        legend.position = "none")+
+  ylab("Prob randomly-selected assocate \nof A is B after 5 days (weighted)")+
+  xlab("Dyad")+
+  labs(caption = "(includes dyads with >= 6 valid lags)")
+
 # How does jackknifing fit in here?
 # Is this even the right measure?
-# Can we make it weighted?
 
 
 
