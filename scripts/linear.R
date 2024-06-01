@@ -1,5 +1,6 @@
 library(tidyverse)
 library(targets)
+library(igraph)
 
 tar_load(feeding_sris)
 tar_load(flight_sris)
@@ -224,6 +225,21 @@ names(reversed)[1:2] <- c("ID1", "ID2")
 # note that I am *not* reassigning the "dyad" column because I want duplicate rows to show up as duplicate... I think... or I might just end up ignoring the dyad column... we'll see.
 allall <- bind_rows(all, reversed)
 
+dyads_summary <- allall %>%
+  select(ID1, ID2, dyad, situ, n_dyad_situ, n_dyad_situ_nonzero) %>%
+  distinct() %>%
+  group_by(situ, ID1) %>%
+  arrange(desc(n_dyad_situ_nonzero), .by_group = T) %>%
+  mutate(rank = 1:n())
+
+dyads_summary %>%
+  ungroup() %>%
+  ggplot(aes(x = rank, y = n_dyad_situ_nonzero, group = ID1))+
+  geom_point(alpha = 0.1)+
+  #geom_line(alpha = 0.2)+
+  facet_wrap(~situ, scales = "free")+
+  geom_smooth(se = F, linewidth = 0.2, col = "black", alpha = 0.5)
+
 thresholds <- 0:max(all$period)
 friends_cumsum <- map(thresholds, ~allall %>%
                         group_by(ID1, situ) %>%
@@ -255,3 +271,160 @@ friends_cumsum %>%
   theme_minimal()+
   facet_wrap(~situ)
 # I have a feeling there's a better way to look at this, involving rank order of friends, but I'm not thinking of it right now. Time to move on, and come back to this when I'm fresher.
+
+# Permutations ------------------------------------------------------------
+# In order to figure out the trend, need to permute the node identities separately on each of the networks, and then re-calculate the trends, pulling out the slope and p-value and various other information, and then compare that to the observed slopes.
+
+minimal <- all %>%
+  ungroup() %>%
+  select(ID1, ID2, weight, situ, period)
+
+tonetworks <- minimal %>%
+  group_by(situ, period) %>%
+  group_split() %>% map(., as.data.frame)
+gs <- map(tonetworks, ~igraph::graph_from_data_frame(.x, directed = FALSE))
+
+reps <- 100
+shuffled_reps <- vector(mode = "list", length = reps)
+for(i in 1:reps){
+  shuffled_graphs <- map(gs, ~{
+    V(.x)$name <- sample(V(.x)$name)
+    return(.x)
+  })
+  shuffled <- map(shuffled_graphs, 
+                              ~igraph::as_data_frame(.x) %>%
+                                mutate(rep = i)) %>% purrr::list_rbind()
+  shuffled_reps[[i]] <- shuffled
+  cat(".")
+}
+
+shuffled_reps_df <- purrr::list_rbind(shuffled_reps)
+# Because of the shuffling, the dyads may now be in the wrong order. Let's get ID1 and ID2 to be correct (ID1 < ID2).
+ordered <- shuffled_reps_df %>%
+  rowwise() %>%
+  mutate(ID1 = min(from, to),
+         ID2 = max(from, to))
+
+# Filter out any duplicates or self edges
+replicates <- ordered %>%
+  ungroup() %>%
+  select(ID1, ID2, weight, situ, period, rep) %>%
+  distinct() %>%
+  mutate(dyad = paste(ID1, ID2, sep = ", "))
+minimal <- minimal %>%
+  mutate(dyad = paste(ID1, ID2, sep = ", "))
+
+all(minimal$dyad %in% replicates$dyad)
+all(replicates$dyad %in% minimal$dyad)
+length(unique(replicates$dyad))
+length(unique(minimal$dyad))
+
+## Now we're set up to run regressions
+test <- minimal %>% filter(dyad == "adam, Jill", situ == "feeding")
+lm.test <- lm(weight ~ period, data = test)
+
+# Calculate linear models for observed data
+obs_for_lms <- minimal %>%
+  group_split(dyad, situ)
+
+lms_obs_summ <- map(obs_for_lms, ~{
+  mod <- lm(weight ~ period, data = .x)
+  summ <- broom::tidy(mod)
+}, .progress = T)
+
+obs_labels <- map(obs_for_lms, ~.x %>% select(ID1, ID2, dyad, situ) %>% distinct())
+
+lms_obs_summ_labeled <- map2(lms_obs_summ, obs_labels, ~bind_cols(.y, .x)) %>% purrr::list_rbind()
+  
+# Calculate linear models for permuted data
+future::plan(future::multisession, workers = 20)
+perm_for_lms <- replicates %>%
+  group_split(dyad, situ, rep)
+lms_perm_summ <- furrr::future_map(perm_for_lms, ~{
+  mod <- lm(weight ~ period, data = .x)
+  summ <- broom::tidy(mod)
+}, .progress = T)
+
+perm_labels <- replicates %>% select(ID1, ID2, dyad, situ, rep) %>%
+                     distinct() %>% mutate(n = 1:nrow(.))
+
+lms_perm_summ <- lms_perm_summ %>% purrr::list_rbind(names_to = "n")
+  
+lms_perm_summ_labeled <- left_join(perm_labels, lms_perm_summ, by = "n") %>% select(-n)
+
+## Okay, now we can compare the regression results!
+# Let's pick a random dyad: "erasmus, scout"
+test_obs <- lms_obs_summ_labeled %>% filter(dyad == "erasmus, scout")
+test_perm <- lms_perm_summ_labeled %>% filter(dyad == "erasmus, scout")
+
+test_perm %>%
+  filter(term == "period") %>%
+  ggplot(aes(x = estimate, col = situ))+
+  geom_density()+
+  theme_minimal()+
+  geom_vline(data = test_obs %>% filter(term == "period"), 
+             aes(xintercept = estimate, col = situ)) # okay, so for feeding and roosting, the observed is a bit less than what would be expected by chance, but not for flight. And it's not significant for any of them.
+
+# What about for one where we know the observed looks like it has a significant slope? Estavan and Nevada for roosting, for instance.
+test_obs <- lms_obs_summ_labeled %>% filter(dyad == "estavan, nevada")
+test_perm <- lms_perm_summ_labeled %>% filter(dyad == "estavan, nevada")
+
+test_perm %>%
+  filter(term == "period") %>%
+  ggplot(aes(x = estimate, col = situ))+
+  geom_density()+
+  theme_minimal()+
+  geom_vline(data = test_obs %>% filter(term == "period"), 
+             aes(xintercept = estimate, col = situ)) # nice! so the estimate is significantly different than expected by chance; these individuals actually have a positive trend in their co-roosting frequency over the course of the season, and that's a non-random positive trend.
+
+# okay but that's the estimates; what if we do the p-values instead?
+test_perm %>%
+  filter(term == "period") %>%
+  ggplot(aes(x = p.value, col = situ))+
+  geom_density()+
+  theme_minimal()+
+  geom_vline(data = test_obs %>% filter(term == "period"), 
+             aes(xintercept = p.value, col = situ)) # hmm, I don't think this is very informative...
+
+# Time to ask some real questions about this!
+# Out of the dyads that had information for at least 15 (out of 25) periods, and had a significant upward or downward trend (p < 0.05), which of those are significantly different from random?
+
+dyads_15periods <- minimal %>%
+  group_by(dyad, situ) %>% filter(length(unique(period)) >= 15) %>%
+  select(dyad, situ) %>%
+  distinct()
+
+dyads_15periods_sigtrend <- dyads_15periods %>%
+  left_join(lms_obs_summ_labeled, by = c("dyad", "situ")) %>%
+  filter(term == "period", p.value < 0.05)
+
+### oops, gotta calculate the differences from random for the slope estimate
+combined <- lms_perm_summ_labeled %>%
+  left_join(lms_obs_summ_labeled, by = c("ID1", "ID2", "dyad", "situ", "term"), suffix = c("", "_obs"))
+
+combined_summ <- combined %>%
+  filter(term == "period") %>%
+  select(dyad, situ, rep, estimate, estimate_obs) %>%
+  group_by(dyad, situ) %>%
+  summarize(n_obs_greater = sum(estimate_obs > estimate),
+            n_obs_less = sum(estimate_obs < estimate),
+            prop_obs_greater = n_obs_greater/n(),
+            prop_obs_less = n_obs_less/n())
+
+dyads_15periods_sigtrend_nonrandom <- dyads_15periods_sigtrend %>%
+  left_join(combined_summ) %>%
+  filter(prop_obs_greater <= 0.025 | prop_obs_less <= 0.025) %>%
+  arrange(ID1, ID2, situ)
+
+## Okay cool, now let's visualize!
+### pick 8 at random:
+whichtoshow <- dyads_15periods_sigtrend_nonrandom %>%
+  slice_sample(n = 8) %>% select(dyad, situ)
+replicates_toshow <- left_join(whichtoshow, replicates)
+
+replicates_toshow %>%
+  ggplot(aes(x = period, y = weight, col = situ, group = rep))+
+  geom_point(alpha = 0.2)+
+  facet_wrap()+
+  geom_smooth(method = "lm", se = F)
+
