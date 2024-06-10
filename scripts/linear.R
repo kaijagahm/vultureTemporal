@@ -394,6 +394,8 @@ dyads_15periods <- minimal %>%
   select(dyad, situ) %>%
   distinct()
 
+n15 <- length(unique(dyads_15periods$dyad))
+
 dyads_15periods_sigtrend <- dyads_15periods %>%
   left_join(lms_obs_summ_labeled, by = c("dyad", "situ")) %>%
   filter(term == "period", p.value < 0.05)
@@ -409,9 +411,18 @@ combined_summ <- combined %>%
   summarize(n_obs_greater = sum(estimate_obs > estimate),
             n_obs_less = sum(estimate_obs < estimate),
             prop_obs_greater = n_obs_greater/n(),
-            prop_obs_less = n_obs_less/n())
+            prop_obs_less = n_obs_less/n()) %>%
+  ungroup()
+
+dyads_15periods_nonrandom <- dyads_15periods %>%
+  ungroup() %>%
+  left_join(combined_summ) %>%
+  filter(prop_obs_greater <= 0.025 | prop_obs_less <= 0.025)
+
+length(unique(dyads_15periods_nonrandom$dyad))/n15
 
 dyads_15periods_sigtrend_nonrandom <- dyads_15periods_sigtrend %>%
+  ungroup() %>%
   left_join(combined_summ) %>%
   filter(prop_obs_greater <= 0.025 | prop_obs_less <= 0.025) %>%
   arrange(ID1, ID2, situ)
@@ -419,12 +430,16 @@ dyads_15periods_sigtrend_nonrandom <- dyads_15periods_sigtrend %>%
 ## Okay cool, now let's visualize!
 ### pick 8 at random:
 whichtoshow <- dyads_15periods_sigtrend_nonrandom %>%
-  slice_sample(n = 8) %>% select(dyad, situ)
+  slice_sample(n = 9) %>% select(dyad, situ)
 replicates_toshow <- left_join(whichtoshow, replicates)
+obs_toshow <- left_join(whichtoshow, minimal)
 
 replicates_toshow %>%
-  ggplot(aes(x = period, y = weight, col = situ, group = rep))+
-  geom_point(alpha = 0.2)+
-  facet_wrap()+
-  geom_smooth(method = "lm", se = F)
-
+  ggplot(aes(x = period, y = weight, col = situ))+
+  theme_minimal()+
+  geom_jitter(alpha = 0.1, width = 0.05, height = 0.05, size = 0.2)+
+  facet_wrap(~dyad)+
+  geom_smooth(method = "lm", se = F, linewidth = 0.2, aes(group = rep))+
+  geom_smooth(data = obs_toshow, method = "lm", se = T, linewidth = 1, col = "black")+
+  theme(legend.position = "bottom",
+        panel.grid.major.x = element_blank())
