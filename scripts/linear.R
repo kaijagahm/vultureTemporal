@@ -80,6 +80,18 @@ frequent_interactions %>%
 # Ask what individual characteristics predict the trends over time
 # Do the Hobson stability analyses, to see if relationships stabilize over the course of the season (there's no reason to believe that they should...)
 
+# Create stationary networks ----------------------------------------------
+## Will use this to determine how many significant slopes we would expect to get just by chance
+### First, get the distributions we'll use to generate the networks
+sri_dist_fl <- minimal %>% filter(situ == "flight") %>% pull(weight)
+sri_dist_fe <- minimal %>% filter(situ == "feeding") %>% pull(weight)
+sri_dist_ro <- minimal %>% filter(situ == "roosting") %>% pull(weight)
+static_fl <- minimal %>% filter(situ == "flight") %>% select(ID1, ID2, situ, period) %>% mutate(weight = sample(sri_dist_fl))
+static_fe <- minimal %>% filter(situ == "feeding") %>% select(ID1, ID2, situ, period) %>% mutate(weight = sample(sri_dist_fe))
+static_ro <- minimal %>% filter(situ == "roosting") %>% select(ID1, ID2, situ, period) %>% mutate(weight = sample(sri_dist_ro))
+
+static <- bind_rows(static_fl, static_fe, static_ro)
+
 # Permutations ------------------------------------------------------------
 # In order to figure out the trend, need to permute the node identities separately on each of the networks, and then re-calculate the trends, pulling out the slope and p-value and various other information, and then compare that to the observed slopes.
 
@@ -92,26 +104,52 @@ tonetworks <- minimal %>%
   group_split() %>% map(., as.data.frame)
 gs <- map(tonetworks, ~igraph::graph_from_data_frame(.x, directed = FALSE))
 
+tonetworks_static <- static %>%
+  group_by(situ, period) %>%
+  group_split() %>% map(., as.data.frame)
+gs_static <- map(tonetworks_static, ~igraph::graph_from_data_frame(.x, directed = FALSE))
+
 reps <- 100
 shuffled_reps <- vector(mode = "list", length = reps)
+shuffled_reps_static <- vector(mode = "list", length = reps)
 for(i in 1:reps){
   shuffled_graphs <- map(gs, ~{
+    V(.x)$name <- sample(V(.x)$name)
+    return(.x)
+  })
+  shuffled_graphs_static <- map(gs_static, ~{
     V(.x)$name <- sample(V(.x)$name)
     return(.x)
   })
   shuffled <- map(shuffled_graphs, 
                               ~igraph::as_data_frame(.x) %>%
                                 mutate(rep = i)) %>% purrr::list_rbind()
+  shuffled_static <- map(shuffled_graphs_static,
+                         ~igraph::as_data_frame(.x) %>%
+                           mutate(rep = i)) %>% purrr::list_rbind()
   shuffled_reps[[i]] <- shuffled
+  shuffled_reps_static[[i]] <- shuffled_static
   cat(".")
 }
 
 shuffled_reps_df <- purrr::list_rbind(shuffled_reps)
+shuffled_reps_static_df <- purrr::list_rbind(shuffled_reps_static)
 # Because of the shuffling, the dyads may now be in the wrong order. Let's get ID1 and ID2 to be correct (ID1 < ID2).
-ordered <- shuffled_reps_df %>%
-  rowwise() %>%
-  mutate(ID1 = min(from, to),
-         ID2 = max(from, to))
+forward <- shuffled_reps_df %>%
+  mutate(ID1 = from, ID2 = to)
+backward <- shuffled_reps_df %>%
+  mutate(ID1 = to, ID2 = from)
+ordered <- bind_rows(forward, backward) %>%
+  filter(ID1 < ID2)
+rm(forward, backward)
+
+forward <- shuffled_reps_static_df %>%
+  mutate(ID1 = from, ID2 = to)
+backward <- shuffled_reps_static_df %>%
+  mutate(ID1 = to, ID2 = from)
+ordered_static <- bind_rows(forward, backward) %>%
+  filter(ID1 < ID2)
+rm(forward, backward)
 
 # Filter out any duplicates or self edges
 replicates <- ordered %>%
@@ -119,20 +157,30 @@ replicates <- ordered %>%
   select(ID1, ID2, weight, situ, period, rep) %>%
   distinct() %>%
   mutate(dyad = paste(ID1, ID2, sep = ", "))
+replicates_static <- ordered_static %>%
+  ungroup() %>%
+  select(ID1, ID2, weight, situ, period, rep) %>%
+  distinct() %>%
+  mutate(dyad = paste(ID1, ID2, sep = ", "))
 minimal <- minimal %>%
+  mutate(dyad = paste(ID1, ID2, sep = ", "))
+static <- static %>%
   mutate(dyad = paste(ID1, ID2, sep = ", "))
 
 all(minimal$dyad %in% replicates$dyad)
+all(static$dyad %in% replicates_static$dyad)
 all(replicates$dyad %in% minimal$dyad)
+all(replicates_static$dyad %in% static$dyad)
 length(unique(replicates$dyad))
+length(unique(replicates_static$dyad))
 length(unique(minimal$dyad))
+length(unique(static$dyad))
 
 ## Now we're set up to run regressions
-test <- minimal %>% filter(dyad == "adam, Jill", situ == "feeding")
-lm.test <- lm(weight ~ period, data = test)
-
 # Calculate linear models for observed data
 obs_for_lms <- minimal %>%
+  group_split(dyad, situ)
+obs_for_lms_static <- static %>%
   group_split(dyad, situ)
 
 lms_obs_summ <- map(obs_for_lms, ~{
@@ -140,25 +188,42 @@ lms_obs_summ <- map(obs_for_lms, ~{
   summ <- broom::tidy(mod)
 }, .progress = T)
 
+lms_obs_summ_static <- map(obs_for_lms_static, ~{
+  mod <- lm(weight ~ period, data = .x)
+  summ <- broom::tidy(mod)
+}, .progress = T)
+
 obs_labels <- map(obs_for_lms, ~.x %>% select(ID1, ID2, dyad, situ) %>% distinct())
+obs_labels_static <- map(obs_for_lms_static, ~.x %>% select(ID1, ID2, dyad, situ) %>% distinct())
 
 lms_obs_summ_labeled <- map2(lms_obs_summ, obs_labels, ~bind_cols(.y, .x)) %>% purrr::list_rbind()
-  
+lms_obs_summ_labeled_static <- map2(lms_obs_summ_static, obs_labels_static, ~bind_cols(.y, .x)) %>% purrr::list_rbind()
+
 # Calculate linear models for permuted data
 future::plan(future::multisession, workers = 20)
 perm_for_lms <- replicates %>%
   group_split(dyad, situ, rep)
+perm_for_lms_static <- replicates_static %>%
+  group_split(dyad, situ, rep)
 lms_perm_summ <- furrr::future_map(perm_for_lms, ~{
+  mod <- lm(weight ~ period, data = .x)
+  summ <- broom::tidy(mod)
+}, .progress = T)
+lms_perm_summ_static <- furrr::future_map(perm_for_lms_static, ~{
   mod <- lm(weight ~ period, data = .x)
   summ <- broom::tidy(mod)
 }, .progress = T)
 
 perm_labels <- replicates %>% select(ID1, ID2, dyad, situ, rep) %>%
                      distinct() %>% mutate(n = 1:nrow(.))
+perm_labels_static <- replicates_static %>% select(ID1, ID2, dyad, situ, rep) %>%
+  distinct() %>% mutate(n = 1:nrow(.))
 
 lms_perm_summ <- lms_perm_summ %>% purrr::list_rbind(names_to = "n")
-  
+lms_perm_summ_static <- lms_perm_summ_static %>% purrr::list_rbind(names_to = "n")
+
 lms_perm_summ_labeled <- left_join(perm_labels, lms_perm_summ, by = "n") %>% select(-n)
+lms_perm_summ_labeled_static <- left_join(perm_labels_static, lms_perm_summ_static, by = "n") %>% select(-n)
 
 ## Okay, now we can compare the regression results!
 # Let's pick a random dyad: "erasmus, scout"
@@ -194,60 +259,87 @@ test_perm %>%
   geom_vline(data = test_obs %>% filter(term == "period"), 
              aes(xintercept = p.value, col = situ)) # hmm, I don't think this is very informative...
 
-# Time to ask some real questions about this!
-# Out of the dyads that had information for at least 15 (out of 25) periods, and had a significant upward or downward trend (p < 0.05), which of those are significantly different from random?
+## Add number of periods
+all_minimal <- minimal %>%
+  group_by(dyad, situ) %>%
+  mutate(nperiods = length(unique(period))) %>%
+  ungroup() %>%
+  left_join(lms_obs_summ_labeled, by = c("ID1", "ID2", "dyad", "situ"), relationship = "many-to-many") %>%
+  arrange(dyad, situ, period, term)
 
-dyads_15periods <- minimal %>%
-  group_by(dyad, situ) %>% filter(length(unique(period)) >= 15) %>%
-  select(dyad, situ) %>%
-  distinct()
-
-n15 <- length(unique(dyads_15periods$dyad))
-
-dyads_15periods_sigtrend <- dyads_15periods %>%
-  left_join(lms_obs_summ_labeled, by = c("dyad", "situ")) %>%
-  filter(term == "period", p.value < 0.05)
+all_static <- static %>%
+  group_by(dyad, situ) %>%
+  mutate(nperiods = length(unique(period))) %>%
+  ungroup() %>%
+  left_join(lms_obs_summ_labeled_static, by = c("ID1", "ID2", "dyad", "situ"), relationship = "many-to-many") %>%
+  arrange(dyad, situ, period, term)
 
 ### oops, gotta calculate the differences from random for the slope estimate
 combined <- lms_perm_summ_labeled %>%
-  left_join(lms_obs_summ_labeled, by = c("ID1", "ID2", "dyad", "situ", "term"), suffix = c("", "_obs"))
-
-combined_summ <- combined %>%
-  filter(term == "period") %>%
-  select(dyad, situ, rep, estimate, estimate_obs) %>%
-  group_by(dyad, situ) %>%
-  summarize(n_obs_greater = sum(estimate_obs > estimate),
-            n_obs_less = sum(estimate_obs < estimate),
-            prop_obs_greater = n_obs_greater/n(),
-            prop_obs_less = n_obs_less/n()) %>%
+  left_join(all_minimal, by = c("ID1", "ID2", "dyad", "situ", "term"), suffix = c("", "_obs"), relationship = "many-to-many") %>%
   ungroup()
 
-dyads_15periods_nonrandom <- dyads_15periods %>%
+combined_static <- lms_perm_summ_labeled_static %>%
+  left_join(all_static, by = c("ID1", "ID2", "dyad", "situ", "term"), suffix = c("", "_obs"), relationship = "many-to-many") %>%
+  ungroup()
+
+## Now let's look at two different cases:
+### 1. significant slopes whose slopes are significantly different from random (at least 15 periods of data)
+### 2. non-significant slopes (i.e. flat lines) whose intercepts are significantly different from random (at least 15 periods of data)
+
+fifteen <- combined %>%
+  filter(nperiods >= 15)
+fifteen_static <- combined_static %>%
+  filter(nperiods >= 15)
+
+#### 1.
+sigslopes_nonrandom <- fifteen %>% # at least 15 periods
+  filter(p.value_obs < 0.05, term == "period") %>% # significant slopes
+  group_by(dyad, situ) %>%
+  mutate(prop_obs_greater = sum(estimate_obs > estimate)/n(),
+         prop_obs_less = sum(estimate_obs < estimate)/n()) %>%
   ungroup() %>%
-  left_join(combined_summ) %>%
+  filter(prop_obs_greater <= 0.025 | prop_obs_less <= 0.025) # slope significantly different from random
+
+sigslopes_nonrandom_static <- fifteen_static %>%
+  filter(p.value_obs <= 0.05, term == "period") %>%
+  group_by(dyad, situ) %>%
+  mutate(prop_obs_greater = sum(estimate_obs > estimate)/n(),
+         prop_obs_less = sum(estimate_obs < estimate)/n()) %>%
+  ungroup() %>%
   filter(prop_obs_greater <= 0.025 | prop_obs_less <= 0.025)
 
-length(unique(dyads_15periods_nonrandom$dyad))/n15
-
-dyads_15periods_sigtrend_nonrandom <- dyads_15periods_sigtrend %>%
+#### 2.
+friendsenemies <- fifteen %>% # at least 15 periods
+  filter(p.value_obs >= 0.05, term == "(Intercept)") %>% # non-significant slopes
+  group_by(dyad, situ) %>%
+  mutate(prop_obs_greater = sum(estimate_obs > estimate)/n(),
+         prop_obs_less = sum(estimate_obs < estimate)/n()) %>%
   ungroup() %>%
-  left_join(combined_summ) %>%
-  filter(prop_obs_greater <= 0.025 | prop_obs_less <= 0.025) %>%
-  arrange(ID1, ID2, situ)
+  filter(prop_obs_greater <= 0.025 | prop_obs_less <= 0.025) # intercept significantly different from random
 
-## Okay cool, now let's visualize!
-### pick 8 at random:
-whichtoshow <- dyads_15periods_sigtrend_nonrandom %>%
-  slice_sample(n = 9) %>% select(dyad, situ)
-replicates_toshow <- left_join(whichtoshow, replicates)
-obs_toshow <- left_join(whichtoshow, minimal)
+friends <- friendsenemies %>%
+  filter(prop_obs_greater > prop_obs_less)
 
-replicates_toshow %>%
-  ggplot(aes(x = period, y = weight, col = situ))+
-  theme_minimal()+
-  geom_jitter(alpha = 0.1, width = 0.05, height = 0.05, size = 0.2)+
-  facet_wrap(~dyad)+
-  geom_smooth(method = "lm", se = F, linewidth = 0.2, aes(group = rep))+
-  geom_smooth(data = obs_toshow, method = "lm", se = T, linewidth = 1, col = "black")+
-  theme(legend.position = "bottom",
-        panel.grid.major.x = element_blank())
+enemies <- friendsenemies %>%
+  filter(prop_obs_less > prop_obs_greater)
+  
+friendsenemies_static <- fifteen_static %>% # at least 15 periods
+  filter(p.value_obs >= 0.05, term == "(Intercept)") %>% # non-significant slopes
+  group_by(dyad, situ) %>%
+  mutate(prop_obs_greater = sum(estimate_obs > estimate)/n(),
+         prop_obs_less = sum(estimate_obs < estimate)/n()) %>%
+  ungroup() %>%
+  filter(prop_obs_greater <= 0.025 | prop_obs_less <= 0.025) # intercept significantly different from random
+
+friends_static <- friendsenemies_static %>%
+  filter(prop_obs_greater > prop_obs_less)
+
+enemies_static <- friendsenemies_static %>%
+  filter(prop_obs_less > prop_obs_greater)
+
+length(unique(friends$dyad))
+length(unique(friends_static$dyad))
+length(unique(enemies$dyad))
+length(unique(enemies_static$dyad))
+# these are really weird numbers! What gives??
