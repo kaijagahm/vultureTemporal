@@ -11,12 +11,15 @@ tar_load(timewindows)
 # Will need to pick a time window when there are fewer gaps. Daily will result in lots of fluctuations, necessarily.
 # How do we determine which pairs to look at? Don't want to exclude pairs that e.g. had a strong relationship at the beginning and then petered out. Maybe need a certain number of days/periods over the whole season? 
 
-# 5-days ------------------------------------------------------------------
-# Okay, so that was interesting, but I think we need to try this with larger windows! 1 day just has too many gaps.
+# Data prep ------------------------------------------------------------------
 # Prepare the data for 5-day windows.
-fe <- feeding_sris[[2]] %>% purrr::imap(~.x %>% mutate(period = .y) %>% mutate(across(everything(), as.character))) %>% purrr::list_rbind() %>% mutate(period = as.numeric(period), weight = as.numeric(weight)) %>% mutate(situ = "feeding")
-fl <- flight_sris[[2]] %>% purrr::imap(~.x %>% mutate(period = .y) %>% mutate(across(everything(), as.character))) %>% purrr::list_rbind() %>% mutate(period = as.numeric(period), weight = as.numeric(weight)) %>% mutate(situ = "flight")
-ro <- roost_sris[[2]] %>% purrr::imap(~.x %>% mutate(period = .y) %>% mutate(across(everything(), as.character))) %>% purrr::list_rbind() %>% mutate(period = as.numeric(period), weight = as.numeric(weight)) %>% mutate(situ = "roosting")
+prep <- function(graphs, situation){
+  g <- graphs %>% purrr::imap(~.x %>% mutate(period = .y) %>% mutate(across(everything(), as.character))) %>% purrr::list_rbind() %>% mutate(period = as.numeric(period), weight = as.numeric(weight)) %>% mutate(situ = situation)
+  return(g)
+}
+fe <- prep(feeding_sris[[2]], "feeding")
+fl <- prep(flight_sris[[2]], "flight")
+ro <- prep(roost_sris[[2]], "roosting")
 
 all <- list_rbind(list(fe, fl, ro)) %>% mutate(dyad = paste(ID1, ID2, sep = ", "))
 all(all$ID1 < all$ID2) # should be no repeat dyads or self dyads
@@ -32,6 +35,7 @@ all <- all %>%
   mutate(n_dyad = n(),
          n_dyad_nonzero = sum(weight > 0))
 
+# Exploration -------------------------------------------------------------
 # If we look at 5-day windows, how many will we have?
 max(all$period) # 25 periods. Okay, let's see a histogram of how many dyads have information for how many periods
 all %>%
@@ -40,7 +44,7 @@ all %>%
   facet_wrap(~situ, scales = "free")+
   theme_minimal() # okay, so for flight and roosting we don't have very many periods with no data for one or both individuals, mostly good coverage. Feeding happens much less frequently, so naturally we have more dyads that don't interact in a co-feeding context during every 5-day period.
 
-# Let's select dyads that have valid interactions for at least 10 out of 25 5-day periods? (This is a pretty arbitrary pick.)
+# Let's select dyads that have valid interactions for at least 10 out of 25 5-day periods? (Arbitrary choice)
 
 frequent <- all %>%
   filter(n_dyad_situ >= 10)
@@ -70,36 +74,11 @@ frequent_interactions %>%
   geom_smooth(method = "lm")+
   facet_wrap(~dyad, scales = "free") # now this is exciting!! We actually see some decent trends, especially in roosting, once you aggregate over enough nights to be able to tell. Arguably we could do this over 10 nights as well, but then there are only 10 periods...
 
-# Let's see the same plot with a non-linear loess fit:
-frequent_interactions %>%
-  filter(dyad %in% random_dyads_freq) %>%
-  ggplot(aes(x = period, y = weight, col = situ))+
-  geom_point()+
-  geom_line(alpha = 0.2)+
-  theme_minimal()+
-  geom_smooth()+
-  facet_wrap(~dyad, scales = "free") # tells a pretty similar story, if  messy.
-
 # Now what do we do with this information?
 # Figure out how many of them have significant slopes, and which ones
 # Follow Hobson et al for suggestions of what to do next
 # Ask what individual characteristics predict the trends over time
 # Do the Hobson stability analyses, to see if relationships stabilize over the course of the season (there's no reason to believe that they should...)
-
-# Another question: what if we look at a single individual and look at all of its salient relationships. The dyad estavan, nevada seemed to be an interesting one for roosting, so maybe let's first subset the data to estavan, and then retain any dyads that estavan is a part of that have at least 10 periods with non-zero interactions?
-estavan <- all %>%
-  filter(ID1 == "estavan" | ID2 == "estavan")
-estavan_salient <- estavan %>%
-  filter(n_dyad_situ_nonzero >= 8)
-length(unique(estavan_salient$dyad))
-
-estavan_salient %>%
-  ggplot(aes(x = period, y = weight, col = situ))+
-  geom_point()+
-  geom_line(alpha = 0.2)+
-  geom_smooth(method = "lm")+
-  facet_wrap(~dyad)+
-  theme_minimal()
 
 # I wonder: is the strength of the relationship related to the number of days with data? to the number of days with a non-zero sri?
 # I wonder: what does the cumulative number of relationships look like when you look at number of non-zero days vs. number of relationships, for a given individual?
