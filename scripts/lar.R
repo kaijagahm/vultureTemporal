@@ -114,7 +114,7 @@ prob_assoc_w <- periods_all %>%
   rename("str_lead_period_id1" = "str_period",
          "n_lead_period_id1" = "n_period") %>%
   mutate(prob_assoc = lead_value/str_lead_period_id1) %>%
-  filter(weight > 0 & !is.na(weight))
+  filter(weight > 0 & !is.na(weight)) # only looking at re-associations for individuals that *did* associate.
 
 levels <- prob_assoc %>%
   filter(!is.na(prob_assoc)) %>%
@@ -163,8 +163,59 @@ prob_assoc_w %>%
   xlab("Dyad")+
   labs(caption = "(includes dyads with >= 6 valid lags)")
 
+# In order to look at this over the entire population of dyads, we're going to need a mean and sd...
+mns <- prob_assoc_w %>%
+  group_by(dyad) %>%
+  summarize(mn = mean(prob_assoc, na.rm = T))
+
+# Histogram of the means
+mns %>%
+  ggplot(aes(x = mn))+
+  geom_histogram()
+
+mns %>%
+  ggplot(aes(x = 1, y = mn))+
+  geom_boxplot()
+# This is extremely right-skewed, which is going to be a problem because if it's not normally distributed, I don't know how we can represent it with a mean.
+mns %>%
+  ggplot(aes(x = log(mn)))+
+  geom_histogram() # log-transforming helps, but what does that even mean?
+
 # How does jackknifing fit in here?
 # Is this even the right measure?
 
+# Next step is to calculate this over multiple time lags. -----------------
+# have to pick weighted/uw; gonna do weighted.
+# inputs are period_strengths_w and periods_all
 
+lags <- 1:25
+association_probs <- map(lags, ~{
+  periods_all %>%
+    arrange(dyad, period) %>% group_by(dyad) %>%
+    mutate(lead_value = lead(weight, .x),
+           lead_period = lead(period, .x)) %>%
+    ungroup() %>%
+    left_join(period_strengths_w, by = c("ID1", "lead_period" = "period")) %>%
+    rename("str_lead_period_id1" = "str_period",
+           "n_lead_period_id1" = "n_period") %>%
+    mutate(prob_assoc = lead_value/str_lead_period_id1) %>%
+    filter(weight > 0 & !is.na(weight))
+}) %>% purrr::list_rbind(names_to = "lag")
+
+toplot <- association_probs %>%
+  filter(!is.na(lead_value), !is.nan(prob_assoc)) %>%
+  group_by(lag, dyad) %>%
+  summarize(mn = mean(prob_assoc, na.rm = T)) %>%
+  ungroup()
+
+toplot %>%
+  ggplot(aes(x = log(mn), col = factor(lag)))+
+  geom_density()+
+  theme_classic()
+
+toplot %>%
+  ggplot(aes(x = factor(lag), y = log(mn)))+
+  geom_boxplot() # trends slightly upward b/c logs are reversed... hmm.
+
+# I don't know how to make this not be such a tiny number...
 
