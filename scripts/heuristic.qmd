@@ -1,0 +1,202 @@
+---
+title: "Heuristic"
+format: html
+editor: visual
+---
+
+```{r}
+library(targets)
+library(tidyverse)
+tar_config_set(
+  script = here::here('_targets.R'),
+  store = here::here('_targets')
+)
+theme_set(theme_classic())
+```
+
+## Load data
+
+```{r}
+tar_load(timewindows_mins) 
+tar_load(timewindows)
+tar_load(graphs_flight_w)
+tar_load(graphs_feeding_w)
+tar_load(graphs_flight)
+tar_load(graphs_feeding)
+tar_load(graphs_roosting)
+```
+
+General TWIN algorithm from the paper Meaningful Selection of Temporal Resolution for Dynamic Networks (Sulo et al. 2010)
+
+for w = 1 to wmax, do:
+
+compute the time series of graphs G(w)
+
+Compute the time series Fw
+
+if V(Fw) - R(Fw) \< gamma then
+
+output w
+
+end if
+
+end for
+
+Okay, so we have G(w) for each of five w values (stored above as graphs_flight).
+
+Now let's compute F(w) for a few different measures. Density and diameter are easiest in igraph so let's start there, and we can also add transitivity
+
+```{r}
+nonzero <- function(g){
+  gg <- delete_edges(g, which(E(g)$weight==0))
+  return(gg)
+}
+
+fl_density_w <- map(graphs_flight_w, ~map_dbl(.x, ~igraph::edge_density(nonzero(.x))))
+fl_trans_w <- map(graphs_flight_w, ~map_dbl(.x, ~igraph::transitivity(nonzero(.x))))
+fl_diam_w <- map(graphs_flight_w, ~map_dbl(.x, ~igraph::diameter(nonzero(.x))))
+fe_density_w <- map(graphs_feeding_w, ~map_dbl(.x, ~igraph::edge_density(nonzero(.x))))
+fe_trans_w <- map(graphs_feeding_w, ~map_dbl(.x, ~igraph::transitivity(nonzero(.x))))
+fe_diam_w <- map(graphs_feeding_w, ~map_dbl(.x, ~igraph::diameter(nonzero(.x))))
+
+fl_density <- map(graphs_flight, ~map_dbl(.x, ~igraph::edge_density(nonzero(.x))))
+fl_trans <- map(graphs_flight, ~map_dbl(.x, ~igraph::transitivity(nonzero(.x))))
+fl_diam <- map(graphs_flight, ~map_dbl(.x, ~igraph::diameter(nonzero(.x))))
+fe_density <- map(graphs_feeding, ~map_dbl(.x, ~igraph::edge_density(nonzero(.x))))
+fe_trans <- map(graphs_feeding, ~map_dbl(.x, ~igraph::transitivity(nonzero(.x))))
+fe_diam <- map(graphs_feeding, ~map_dbl(.x, ~igraph::diameter(nonzero(.x))))
+ro_density <- map(graphs_roosting, ~map_dbl(.x, ~igraph::edge_density(nonzero(.x))))
+ro_trans <- map(graphs_roosting, ~map_dbl(.x, ~igraph::transitivity(nonzero(.x))))
+ro_diam <- map(graphs_roosting, ~map_dbl(.x, ~igraph::diameter(nonzero(.x))))
+```
+
+Let's visualize those over time, just for the sake of it
+
+```{r}
+#| warning: false
+#| message: false
+measures_fl_w <- pmap(list(fl_density_w, fl_trans_w, fl_diam_w, timewindows_mins),
+                    ~data.frame(dens = ..1, trans = ..2, diam = ..3, w = ..4, situ = "flight") %>%
+                     mutate(step = 1:n(),
+                            time = step*w))
+measures_fe_w <- pmap(list(fe_density_w, fe_trans_w, fe_diam_w, timewindows_mins),
+                    ~data.frame(dens = ..1, trans = ..2, diam = ..3, w = ..4, situ = "feeding") %>%
+                     mutate(step = 1:n(),
+                            time = step*w))
+
+measures_fl <- pmap(list(fl_density, fl_trans, fl_diam, timewindows),
+                    ~data.frame(dens = ..1, trans = ..2, diam = ..3, w = ..4, situ = "flight") %>%
+                     mutate(step = 1:n(),
+                            time = step*w))
+measures_fe <- pmap(list(fe_density, fe_trans, fe_diam, timewindows),
+                    ~data.frame(dens = ..1, trans = ..2, diam = ..3, w = ..4, situ = "feeding") %>%
+                     mutate(step = 1:n(),
+                            time = step*w))
+
+measures_ro <- pmap(list(ro_density, ro_trans, ro_diam, timewindows),
+                    ~data.frame(dens = ..1, trans = ..2, diam = ..3, w = ..4, situ = "roosting") %>%
+                     mutate(step = 1:n(),
+                            time = step*w))
+
+measures_w <- purrr::list_rbind(measures_fl_w) %>% bind_rows(purrr::list_rbind(measures_fe_w)) %>%
+  rename("density" = dens,
+         "transitivity" = trans,
+         "diameter" = diam) %>%
+  pivot_longer(cols = c("density", "transitivity", "diameter"), names_to = "measure", values_to = "value") %>%
+  mutate(w_hours = w/60,
+         time_hours = time/60)
+
+measures <- purrr::list_rbind(measures_fl) %>% bind_rows(purrr::list_rbind(measures_fe)) %>% bind_rows(purrr::list_rbind(measures_ro)) %>%
+  rename("density" = dens,
+         "transitivity" = trans,
+         "diameter" = diam) %>%
+  pivot_longer(cols = c("density", "transitivity", "diameter"), names_to = "measure", values_to = "value")
+
+# Visualize: hourly
+measures_w %>%
+  ggplot(aes(x = time_hours, y = value, col = factor(w_hours)))+
+  facet_wrap(~situ*measure, scales = "free_y")+
+  geom_line()
+
+measures_w %>%
+  ggplot(aes(x = w_hours, y = value, col = situ))+
+  facet_wrap(~situ*measure, scales = "free_y")+
+  geom_point(pch = 1, alpha = 0.2)+
+  geom_smooth()+
+  theme(legend.position = "none")
+
+# Visualize: daily
+measures %>%
+  ggplot(aes(x = w, y = value, col = situ))+
+  facet_wrap(~situ*measure, ncol = 3, scales = "free_y")+
+  geom_point(pch = 1, alpha = 0.2)+
+  geom_smooth()+
+  theme(legend.position = "none")
+```
+
+Now let's plot the CV (sd/mean)
+
+```{r}
+cvs_w <- measures_w %>%
+  group_by(w_hours, situ, measure) %>%
+  summarize(mn = mean(value, na.rm = T),
+            sd = sd(value, na.rm = T),
+            cv = sd/mn) %>%
+  ungroup() %>%
+  mutate(w_days = w_hours/24)
+
+cvs <- measures %>%
+  group_by(w, situ, measure) %>%
+  summarize(mn = mean(value, na.rm = T),
+            sd = sd(value, na.rm = T),
+            cv = sd/mn) %>%
+  ungroup() %>%
+  mutate(w_days = w)
+
+# HOURLY
+cvs_w %>%
+  filter(w_days <= 1) %>%
+  ggplot(aes(x = w_hours, y = cv, col = situ))+
+  facet_wrap(~measure, scales = "free_y")+
+  geom_line()+
+  geom_point()+
+  ylab("CV")+
+  xlab("Time window (hours)")+
+  theme(legend.position = "bottom",
+        text = element_text(size = 16))
+
+## same thing with time on a log scale:
+cvs_w %>%
+  filter(w_days <= 1) %>%
+  ggplot(aes(x = log(w_hours), y = cv, col = situ))+
+  facet_wrap(~measure, scales = "free_y")+
+  geom_line()+
+  geom_point()+
+  ylab("CV")+
+  xlab("Time window (hours) (log-transformed)")+
+  theme(legend.position = "bottom",
+        text = element_text(size = 16))
+
+# DAILY
+cvs %>%
+  ggplot(aes(x = w_days, y = cv, col = situ))+
+  facet_wrap(~measure, scales = "free_y")+
+  geom_line()+
+  geom_point()+
+  ylab("CV")+
+  xlab("Time window (days)")+
+  theme(legend.position = "bottom",
+        text = element_text(size = 16))
+
+## same thing with time on a log scale:
+cvs %>%
+  ggplot(aes(x = log(w_days), y = cv, col = situ))+
+  facet_wrap(~measure, scales = "free_y")+
+  geom_line()+
+  geom_point()+
+  ylab("CV")+
+  xlab("Time window (days) (log-transformed)")+
+  theme(legend.position = "bottom",
+        text = element_text(size = 16))
+
+```
