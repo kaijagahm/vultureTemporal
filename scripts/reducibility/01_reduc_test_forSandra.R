@@ -5,7 +5,7 @@ library(tnet)
 library(sna)
 
 # Data ingest (already sliced into appropriate chunks)
-load("data/calcSocial/feedingEdges.Rda")
+load(here("data/calcSocial/edges_feeding.Rda"))
 feedingEdges <- purrr::list_rbind(feedingEdges) %>% mutate(date = lubridate::date(minTimestamp))
 load("data/calcSocial/flightEdges.Rda")
 flightEdges <- purrr::list_rbind(flightEdges) %>% mutate(date = lubridate::date(minTimestamp))

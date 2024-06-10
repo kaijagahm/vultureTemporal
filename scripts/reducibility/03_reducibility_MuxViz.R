@@ -12,49 +12,35 @@ library(ggplot2)
 library(RColorBrewer)
 library(rgl)
 library(here)
+source(here("scripts/reducibility/00_reducibility_funs.R"))
 
 # Data prep ---------------------------------------------------------------
 load("data/data_cut.Rda")
 roostPolygons <- sf::st_read(here::here("data/raw/roosts50_kde95_cutOffRegion.kml"))
+# For now, working with the data cut into 1-day intervals
 data_1day <- data_cut[[1]]
-rm(data_cut)
+rm(data_cut) # remove this to save space in the session
 future::plan(future::multisession, workers = 10)
 
-flight_sri <- furrr::future_map(data_1day, ~{
-  library(sf)
-  vultureUtils::getFlightEdges(.x, roostPolygons = roostPolygons, distThreshold = 1000, idCol = "Nili_id", return = "sri")}, .progress = T)
-flight_sri_2 <- map(flight_sri, ~{
-  .x %>% filter(sri > 0 & !is.na(sri)) %>%
-    rename("weight" = "sri")
-})
+# Get feeding and flight sri values
+flight_sri_2 <- get_flight_sris(data_1day, roostPolygons)
+feeding_sri_2 <- get_feeding_sris(data_1day, roostPolygons)
 
-feeding_sri <- furrr::future_map(data_1day, ~{
-  library(sf)
-  vultureUtils::getFeedingEdges(.x, roostPolygons = roostPolygons, distThreshold = 50,
-                                idCol = "Nili_id", return = "sri")}, .progress = T)
-feeding_sri_2 <- map(feeding_sri, ~{
-  .x %>% filter(sri > 0 & !is.na(sri)) %>%
-    rename("weight" = "sri")
-})
+allvertices <- unique(purrr::list_rbind(data_1day)$Nili_id) # get all vultures
+nnodes <- length(allvertices)
 
-allvertices <- unique(purrr::list_rbind(data_1day)$Nili_id)
-nnodes_flight <- length(allvertices)
-nnodes_feeding <- length(allvertices)
-
-graphs_flight <- map(flight_sri_2, ~{
-  graph_from_data_frame(.x, directed = F, vertices = allvertices)
-})
-graphs_feeding <- map(feeding_sri_2, ~{
-  graph_from_data_frame(.x, directed = F, vertices = allvertices)
-})
+# Make graphs
+graphs_flight <- map(flight_sri_2, ~{graph_from_data_frame(.x, directed = F, vertices = allvertices)})
+graphs_feeding <- map(feeding_sri_2, ~{graph_from_data_frame(.x, directed = F, vertices = allvertices)})
 
 # reading files
 load("data/timewindows.Rda") # different numbers of days that we're testing
 length(timewindows)
 
 # Prepare for tensors -----------------------------------------------------
+# how many days?
 nlayers <- 10
-g_list_flight <- graphs_flight[1:nlayers] # for starters, let's just take the first 100 days.
+g_list_flight <- graphs_flight[1:nlayers] 
 g_list_feeding <- graphs_feeding[1:nlayers]
 node_tensor_flight <- purrr::map(g_list_flight, ~as_adjacency_matrix(.x, attr = "weight"))
 node_tensor_feeding <- purrr::map(g_list_feeding, ~as_adjacency_matrix(.x, attr = "weight"))
@@ -70,8 +56,8 @@ layer_tensor <- diagR(c(1,1), nlayers, 1)
 layer_tensor # matrix of interlayer links for temporal multiplex # only adjacent layer to the next layer, not to the previous layer (i.e. directed)
 
 ## M_OR will become the multiplex
-M_OR_flight <- BuildSupraAdjacencyMatrixFromEdgeColoredMatrices(node_tensor_flight, layer_tensor, nlayers, nnodes_flight) # so, we are using layer_tensor here, which should have only one-way edges. But it seems to still be aggregating layers that are non-adjacent.
-M_OR_feeding <- BuildSupraAdjacencyMatrixFromEdgeColoredMatrices(node_tensor_feeding, layer_tensor, nlayers, nnodes_feeding) # so, we are using layer_tensor here, which should have only one-way edges. But it seems to still be aggregating layers that are non-adjacent.
+M_OR_flight <- BuildSupraAdjacencyMatrixFromEdgeColoredMatrices(node_tensor_flight, layer_tensor, nlayers, nnodes) # so, we are using layer_tensor here, which should have only one-way edges. But it seems to still be aggregating layers that are non-adjacent.
+M_OR_feeding <- BuildSupraAdjacencyMatrixFromEdgeColoredMatrices(node_tensor_feeding, layer_tensor, nlayers, nnodes) # so, we are using layer_tensor here, which should have only one-way edges. But it seems to still be aggregating layers that are non-adjacent.
 
 ## Measuring multiplex centralities
 
