@@ -1,19 +1,8 @@
 # LAR/LRA
-library(asnipe)
+# Inventing a new lagged association rate measure for data that isn't group-by-individual
+# (asnipe is designed to work with group-by-individual matrices)
 library(targets)
 library(tidyverse)
-# asnipe is designed to work with group-by-individual matrices, but I'm going to see if I can make it work with my data.
-
-data("group_by_individual")
-nrow(gbi) # 347 interactions/groups
-ncol(gbi) # 151 individuals
-# okay so this is a group-by-individual matrix, which is fundamentally now how my data is stored. 
-
-data("times")
-length(times) #347--the timestamp for each group.
-
-data("individuals")
-dim(inds) #151 inds, with info about each individual.
 
 # One definition of LARs (note: not LRAs) is "the probability that two individuals re-associate a given number of days from their first observed instance of association" (Sunga et al. 2024)
 # Another definition: "Standardized lagged association rates (SLAR) were determined for the entire study period to assess the stability of these relationships. The SLAR g'(t) of a dyad consisting of sharks a and b is an estimate of the average probability that, after a given time lag (t), a randomly selected associate of a will be b, with false absences accounted for according to Whitehead (2008a) and standard errors estimated using jackknifing (Whitehead, 2009)." (Armansin et al. 2016)
@@ -26,157 +15,158 @@ dim(inds) #151 inds, with info about each individual.
 
 # playing around with the vulture data
 tar_load(flight_sris)
+tar_load(feeding_sris)
+tar_load(roost_sris)
+
 ## Let's take the 5-day windows
-fiveday <- flight_sris[[2]]
-periods <- purrr::imap(fiveday, ~.x %>% mutate(period = .y)) %>% purrr::list_rbind() %>%
-  mutate(dyad = paste(ID1, ID2, sep = ", "))
+fl_5 <- flight_sris[[2]]
+fe_5 <- feeding_sris[[2]]
+ro_5 <- roost_sris[[2]]
 
-alldyads <- unique(periods$dyad)
-allperiods <- 1:max(periods$period)
-alldyadperiods <- expand_grid("dyad" = alldyads, "period" = allperiods)
-periods <- alldyadperiods %>% left_join(periods) %>% # this adds in all the NA's for the dyads that didn't interact during certain periods
-  mutate(ID1 = str_extract(dyad, ".*(?=\\,)"),
-         ID2 = str_extract(dyad, "(?<=\\,\\s).*"))
+periods_fl <- purrr::list_rbind(fl_5, names_to = "period") %>% mutate(dyad = paste(ID1, ID2, sep = ", "))
+periods_fe <- purrr::list_rbind(fe_5, names_to = "period") %>% mutate(dyad = paste(ID1, ID2, sep = ", "))
+periods_ro <- purrr::list_rbind(ro_5, names_to = "period") %>% mutate(dyad = paste(ID1, ID2, sep = ", "))
 
-firstinteractions <- periods %>%
-  group_by(period) %>%
-  filter(weight > 0 & !is.na(weight)) %>%
-  arrange(period, .by_group = T) %>%
-  slice(1) %>%
-  ungroup()
+addNAs <- function(periods){
+  alldyads <- unique(periods$dyad)
+  allperiods <- 1:max(periods$period)
+  alldyadperiods <- expand_grid("dyad" = alldyads, "period" = allperiods)
+  periods <- alldyadperiods %>% left_join(periods) %>%
+    mutate(ID1 = str_extract(dyad, ".*(?=\\,)"),
+           ID2 = str_extract(dyad, "(?<=\\,\\s).*"))
+  return(periods)
+}
 
-# Ok but, first interactions are arbitrary. And when we ask "how long does an association last," we also care about differentiating the associations from random. It can't be considered an association if it's due to random noise. However, when we're talking about time, we really can't use the same wrap-around method, because that messes up time. So maybe we're really concerned with a social network permutation? We want to ask whether a given dyad differs significantly in strength from random dyads? I think that brings us back to identity swapping. 
+periods_fl <- addNAs(periods_fl)
+periods_fe <- addNAs(periods_fe)
+periods_ro <- addNAs(periods_ro)
 
-# What if we binarize all of this? So make it just a sequence of 0's and 1's, which I think Elvira already did?
-periods_bin <- periods %>%
-  mutate(yn = case_when(is.na(weight) ~ NA,
-                        weight > 0 & !is.na(weight) ~ 1,
-                        weight == 0 & !is.na(weight) ~ 0))%>%
-  select(ID1, ID2, dyad, period, yn)
+addreverse <- function(data){
+  rev <- data
+  names(rev)[3:4] <- c("ID2", "ID1")
+  rev <- rev %>%
+    mutate(dyad = paste(ID1, ID2, sep = ", "))
+  all <- bind_rows(data, rev)
+  all <- all %>%
+    rowwise() %>%
+    mutate(dyad_absolute = paste(min(ID1, ID2), max(ID1, ID2), sep = ", ")) %>%
+    ungroup()
+  return(all)
+}
 
-periods_bin_rev <- periods_bin
-names(periods_bin_rev)[1:2] <- c("ID2", "ID1")
-periods_bin_rev <- periods_bin_rev %>%
-  mutate(dyad = paste(ID1, ID2, sep = ", "))
+periods_all_fl <- addreverse(periods_fl) %>% mutate(situ = "flight")
+periods_all_fe <- addreverse(periods_fe) %>% mutate(situ = "feeding")
+periods_all_ro <- addreverse(periods_ro) %>% mutate(situ = "roosting")
+periods_all <- bind_rows(periods_all_fl, periods_all_fe, periods_all_ro)
 
-periods_bin_all <- bind_rows(periods_bin, periods_bin_rev) # add on the opposite dyads
-periods_bin_all <- periods_bin_all %>%
-  rowwise() %>%
-  mutate(dyad_absolute = paste(min(ID1, ID2), max(ID1, ID2), sep = ", ")) %>%
-  ungroup()
+# Let's try reinterpreting: given that A and B interact during a given period, what is the probability of B being one of A's associates after a time lag t?
+# need to do this with the data doubled since we're looking on an individual basis--LAR's won't be symmetrical for a given dyad
+# get strengths for each period
+getstrengths <- function(all){
+  all <- all %>%
+    group_by(ID1, period, situ) %>%
+    summarize(str_period = sum(weight, na.rm = T),
+              n_period = sum(!is.na(weight))) %>%
+    ungroup()
+  return(all)
+}
 
-## weighted, non-binary:
-periods_rev <- periods %>% select(ID1, ID2, dyad, period, weight)
-names(periods_rev)[1:2] <- c("ID2", "ID1")
-periods_rev <- periods_rev %>%
-  mutate(dyad = paste(ID1, ID2, sep = ", "))
-periods_all <- bind_rows(periods, periods_rev) # add on the opposite dyads
-periods_all <- periods_all %>%
-  rowwise() %>%
-  mutate(dyad_absolute = paste(min(ID1, ID2), max(ID1, ID2), sep = ", ")) %>%
-  ungroup()
+strengths <- getstrengths(periods_all)
 
-# Also evaluate whether this measure makes sense
-# Is there a way to make a weighted version of this instead of just y/n?
-# Maybe this still isn't really LAR. This is more "given they interact, what is the probability that they interact the next day?" instead of "given they interact, what is the probability that B is one of A's partners the next day?"--which should account for overall lower association rates the following day. Let's try that, both weighted and unweighted, next.
+get_prob_assoc <- function(strengths, all, lead_amt = 1){
+  assocs <- all %>%
+    arrange(situ, dyad, period) %>%
+    group_by(dyad, situ) %>%
+    mutate(lead_value = lead(weight, lead_amt),
+           lead_period = lead(period, lead_amt)) %>%
+    ungroup() %>%
+    left_join(strengths, by = c("ID1", "lead_period" = "period", "situ")) %>%
+    rename("str_lead_period_id1" = "str_period",
+           "n_lead_period_id1" = "n_period") %>%
+    mutate(prob_assoc = lead_value/str_lead_period_id1) %>%
+    filter(weight > 0 & !is.na(weight)) # only looking at re-associations for individuals that did associate.
+  return(assocs)
+}
 
-# Let's try reinterpreting: given that A and B interact on a given day, what is the probability of B being one of A's associates after a time lag t?
-# XXX need to do this with the data doubled since we're looking on an individual basis--LAR's won't be symmetrical for a given dyad
-period_strengths <- periods_bin_all %>%
-  group_by(ID1, period) %>%
-  summarize(str_period = sum(yn == 1, na.rm = T),
-            n_period = sum(!is.na(yn)))
+probs <- get_prob_assoc(strengths, periods_all)
 
-period_strengths_w <- periods_all %>%
-  group_by(ID1, period) %>%
-  summarize(str_period = sum(weight, na.rm = T),
-            n_period = sum(!is.na(weight)))
+# Let's look at some re-association probabilities, restricting it to dyads that interacted in at least 10 different periods.
 
-prob_assoc <- periods_bin_all %>%
-  arrange(dyad, period) %>%
+# get factor levels for ordering
+getlevels <- function(probs, situation, thresh = 10){
+  levels <- probs %>%
+    filter(!is.na(prob_assoc), situ == situation) %>%
+    group_by(dyad) %>%
+    filter(n() >= thresh) %>%
+    summarize(mn = mean(prob_assoc)) %>%
+    arrange(desc(mn)) %>%
+    pull(dyad)
+  return(levels)
+}
+
+lv_fl <- getlevels(probs, "flight", thresh = 10)
+lv_fe <- getlevels(probs, "feeding", thresh = 10)
+lv_ro <- getlevels(probs, "roosting", thresh = 20)
+
+plt_fl <- probs %>%
+  filter(!is.na(prob_assoc), situ == "flight") %>%
   group_by(dyad) %>%
-  mutate(lead_value = lead(yn, 1),
-         lead_period = lead(period, 1)) %>%
-  ungroup() %>%
-  left_join(period_strengths, by = c("ID1", "lead_period" = "period")) %>%
-  rename("str_lead_period_id1" = "str_period",
-         "n_lead_period_id1" = "n_period") %>%
-  mutate(prob_assoc = lead_value/str_lead_period_id1) %>%
-  filter(yn == 1)
-
-prob_assoc_w <- periods_all %>%
-  arrange(dyad, period) %>%
-  group_by(dyad) %>%
-  mutate(lead_value = lead(weight, 1),
-         lead_period = lead(period, 1)) %>%
-  ungroup() %>%
-  left_join(period_strengths_w, by = c("ID1", "lead_period" = "period")) %>%
-  rename("str_lead_period_id1" = "str_period",
-         "n_lead_period_id1" = "n_period") %>%
-  mutate(prob_assoc = lead_value/str_lead_period_id1) %>%
-  filter(weight > 0 & !is.na(weight)) # only looking at re-associations for individuals that *did* associate.
-
-levels <- prob_assoc %>%
-  filter(!is.na(prob_assoc)) %>%
-  group_by(dyad) %>%
-  filter(n() >= 7) %>%
-  summarize(mn = mean(prob_assoc)) %>% 
-  arrange(desc(mn)) %>%
-  pull(dyad)
-
-levels_w <- prob_assoc_w %>%
-  filter(!is.na(prob_assoc)) %>%
-  group_by(dyad) %>%
-  filter(n() >= 7) %>%
-  summarize(mn = mean(prob_assoc)) %>% 
-  arrange(desc(mn)) %>%
-  pull(dyad)
-
-prob_assoc %>%
-  filter(!is.na(prob_assoc)) %>%
-  group_by(dyad) %>%
-  filter(n() >=7) %>%
-  mutate(dyad = factor(dyad, levels = levels)) %>%
+  filter(n() >= 10) %>%
+  mutate(dyad = factor(dyad, levels = lv_fl)) %>%
   ggplot(aes(x = dyad, y = prob_assoc, fill = factor(dyad_absolute)))+
   geom_boxplot(outlier.size = 0.5)+
   theme_minimal()+
   theme(panel.grid.major.x = element_blank(),
         axis.text.x = element_blank(),
         legend.position = "none")+
-  ylab("Prob randomly-selected assocate \nof A is B after 5 days (binary)")+
-  xlab("Dyad")+
-  labs(caption = "(includes dyads with >= 6 valid lags)")
-# Note that the dyads are not always next to each other, because these relationships are not symmetrical.
+  ylab("Prob randomly-selected assocate \nof A is B after 5 days")+
+  xlab("Dyad (co-flight)")+
+  labs(caption = "(includes dyads with >= 10 valid lags)")
+plt_fl
 
-prob_assoc_w %>%
-  filter(!is.na(prob_assoc)) %>%
+# note: because there are some really extreme outliers here, going to remove anything above 0.5 for visualization purposes. This only removes 4 points.
+plt_fe <- probs %>%
+  filter(!is.na(prob_assoc), situ == "feeding", prob_assoc < 0.5) %>%
   group_by(dyad) %>%
-  filter(n() >=7) %>%
-  mutate(dyad = factor(dyad, levels = levels)) %>%
+  filter(n() >= 10) %>%
+  mutate(dyad = factor(dyad, levels = lv_fe)) %>%
   ggplot(aes(x = dyad, y = prob_assoc, fill = factor(dyad_absolute)))+
   geom_boxplot(outlier.size = 0.5)+
   theme_minimal()+
   theme(panel.grid.major.x = element_blank(),
         axis.text.x = element_blank(),
         legend.position = "none")+
-  ylab("Prob randomly-selected assocate \nof A is B after 5 days (weighted)")+
-  xlab("Dyad")+
-  labs(caption = "(includes dyads with >= 6 valid lags)")
+  ylab("Prob randomly-selected assocate \nof A is B after 5 days")+
+  xlab("Dyad (co-feeding)")+
+  labs(caption = "(includes dyads with >= 10 valid lags)")
+plt_fe
+
+plt_ro <- probs %>%
+  filter(!is.na(prob_assoc), situ == "roosting") %>%
+  group_by(dyad) %>%
+  filter(n() >= 20) %>%
+  mutate(dyad = factor(dyad, levels = lv_ro)) %>%
+  ggplot(aes(x = dyad, y = prob_assoc, fill = factor(dyad_absolute)))+
+  geom_boxplot(outlier.size = 0.5)+
+  theme_minimal()+
+  theme(panel.grid.major.x = element_blank(),
+        axis.text.x = element_blank(),
+        legend.position = "none")+
+  ylab("Prob randomly-selected assocate \nof A is B after 5 days")+
+  xlab("Dyad (co-roosting)")+
+  labs(caption = "(includes dyads with >= 20 valid lags)")
+plt_ro
 
 # In order to look at this over the entire population of dyads, we're going to need a mean and sd...
-mns <- prob_assoc_w %>%
-  group_by(dyad) %>%
+mns <- probs %>%
+  group_by(dyad, situ) %>%
   summarize(mn = mean(prob_assoc, na.rm = T))
 
 # Histogram of the means
 mns %>%
   ggplot(aes(x = mn))+
-  geom_histogram()
+  geom_histogram() # extremely right-skewed, which means it's going to be hard to represent with a mean.
 
-mns %>%
-  ggplot(aes(x = 1, y = mn))+
-  geom_boxplot()
-# This is extremely right-skewed, which is going to be a problem because if it's not normally distributed, I don't know how we can represent it with a mean.
 mns %>%
   ggplot(aes(x = log(mn)))+
   geom_histogram() # log-transforming helps, but what does that even mean?
@@ -185,37 +175,49 @@ mns %>%
 # Is this even the right measure?
 
 # Next step is to calculate this over multiple time lags. -----------------
-# have to pick weighted/uw; gonna do weighted.
-# inputs are period_strengths_w and periods_all
-
-lags <- 1:25
-association_probs <- map(lags, ~{
-  periods_all %>%
-    arrange(dyad, period) %>% group_by(dyad) %>%
-    mutate(lead_value = lead(weight, .x),
-           lead_period = lead(period, .x)) %>%
-    ungroup() %>%
-    left_join(period_strengths_w, by = c("ID1", "lead_period" = "period")) %>%
-    rename("str_lead_period_id1" = "str_period",
-           "n_lead_period_id1" = "n_period") %>%
-    mutate(prob_assoc = lead_value/str_lead_period_id1) %>%
-    filter(weight > 0 & !is.na(weight))
+lags <- 1:10 # numbers of 5-day increments
+probs <- get_prob_assoc(strengths, periods_all)
+lar_probs <- map(lags, ~{
+  probs <- get_prob_assoc(strengths, periods_all, lead_amt = .x)
+  return(probs)
 }) %>% purrr::list_rbind(names_to = "lag")
 
-toplot <- association_probs %>%
-  filter(!is.na(lead_value), !is.nan(prob_assoc)) %>%
-  group_by(lag, dyad) %>%
-  summarize(mn = mean(prob_assoc, na.rm = T)) %>%
-  ungroup()
+lars <- lar_probs %>%
+  filter(!is.na(lead_value), !is.nan(prob_assoc), !is.na(prob_assoc)) %>%
+  group_by(lag, dyad, situ) %>%
+  summarize(mn = mean(prob_assoc, na.rm = T),
+            sd = sd(prob_assoc, na.rm = T),
+            n = sum(!is.na(prob_assoc))) %>%
+  ungroup() %>%
+  arrange(situ, dyad, lag)
 
-toplot %>%
+# Let's understand what sample sizes these are based off of.
+lars %>%
+  ggplot(aes(x = n))+
+  geom_histogram()+
+  facet_grid(rows = vars(lag), cols = vars(situ)) # hmm, this doesn't tell me all that much... but I guess we should probably be basing things on an n of at least 3, in order for the means to mean anything.
+
+head(lars)
+lars_n3 <- lars %>%
+  filter(n >= 3)
+
+lars %>%
   ggplot(aes(x = log(mn), col = factor(lag)))+
   geom_density()+
+  theme_classic()+
+  facet_wrap(~situ)
+
+lars %>%
+  ggplot(aes(x = factor(lag), y = mn))+
+  geom_boxplot()+ 
+  facet_wrap(~situ, scales = "free")+
   theme_classic()
 
-toplot %>%
+lars %>%
   ggplot(aes(x = factor(lag), y = log(mn)))+
-  geom_boxplot() # trends slightly upward b/c logs are reversed... hmm.
+  geom_boxplot(outlier.size = 0.1)+ 
+  facet_wrap(~situ, scales = "free")+
+  theme_classic()
 
 # I don't know how to make this not be such a tiny number...
 
