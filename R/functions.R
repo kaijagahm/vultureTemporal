@@ -173,7 +173,8 @@ get_aggregate <- function(multi, nlayers, nnodes){
 }
 
 get_reducibility <- function(graphs, nlayers, nnodes, type, method = "ward.D2"){
-  nodetensor <- purrr::map(graphs, igraph::as_adjacency_matrix)
+  without_zeroes <- map(graphs, ~delete_edges(.x, which(E(.x)$weight == 0))) # XXX REMOVE ZERO EDGES bc igraph doesn't know that they're zeroes
+  nodetensor <- purrr::map(without_zeroes, igraph::as_adjacency_matrix)
   if(type == "Categorical"){
     layertensor <- Matrix::Matrix(1, nlayers, nlayers) - muxViz:::speye(nlayers)
   }else if(type == "Ordinal"){
