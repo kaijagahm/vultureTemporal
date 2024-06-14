@@ -172,41 +172,41 @@ list(
     get_reduc_curves_df(red_feeding_cat, timewindows, "categorical", "feeding"),
     get_reduc_curves_df(red_roosting_cat, timewindows, "categorical", "roosting"),
     get_reduc_curves_df(red_aggregate_cat, timewindows, "categorical", "aggregate")
-  )))#,
+  ))),
 
-  # # HOURS -------------------------------------------------------------------
-  # ### select a 10-day period, let's say July 1-July 10 2023 (not doing roosts for this because it's for hourly data.)
-  # tar_target(data_10day, summer2023data %>%
-  #              filter(dateOnly >= lubridate::ymd("2023-07-01"),
-  #                     dateOnly <= lubridate::ymd("2023-07-10"))),
-  # tar_target(data_cut_hours, cuttimes(data_10day, mins = "60")),
-  # tar_target(allvertices_hours, unique(list_rbind(data_cut_hours)$Nili_id)),
-  # tar_target(nnodes_hours, length(allvertices_hours)),
-  # tar_target(flight_sris_hours, get_flight_sris(data_cut_hours, roostPolygons)),
-  # tar_target(feeding_sris_hours, get_feeding_sris(data_cut_hours, roostPolygons)),
-  # #### make graphs
-  # tar_target(graphs_flight_hours, get_graphs(flight_sris_hours, allvertices)),
-  # tar_target(graphs_feeding_hours, get_graphs(feeding_sris_hours, allvertices)),
-  # #### make tensors
-  # tar_target(tensor_flight_hours, get_node_tensor(graphs_flight_hours)),
-  # tar_target(tensor_feeding_hours, get_node_tensor(graphs_feeding_hours)),
-  # #### get nlayers
-  # tar_target(nlayers_feeding_hours, length(tensor_feeding_hours)),
-  # tar_target(nlayers_flight_hours, length(tensor_flight_hours)),
-  # ### get reducibility curves
-  # tar_target(red_flight_hours_cat,
-  #            get_reducibility(graphs_flight_hours, nlayers_flight_hours,
-  #                            nnodes_hours, type = "Categorical")),
-  # tar_target(red_feeding_hours_cat,
-  #            get_reducibility(graphs_feeding_hours, nlayers_feeding_hours,
-  #                             nnodes_hours, type = "Categorical")),
-  # tar_target(curves_hours,
-  #            pmap(.l = list(data = list(red_flight_hours_cat,
-  #                                       red_feeding_hours_cat),
-  #                           type = "categorical",
-  #                           situ = c("flight", "feeding")
-  #            ), ~data.frame(ent = ..1$gQualityFunction,
-  #                           timewindow = "1 hour",
-  #                           type = ..2, situ = ..3) %>%
-  #              dplyr::mutate(step = 1:nrow(.))) %>% purrr::list_rbind())
+  # HOURS -------------------------------------------------------------------
+  ### select a 10-day period, let's say July 1-July 10 2023 (not doing roosts for this because it's for hourly data.)
+  tar_target(data_10day, summer2023data %>%
+               filter(dateOnly >= lubridate::ymd("2023-07-01"),
+                      dateOnly <= lubridate::ymd("2023-07-10"))),
+  tar_target(data_cut_hours, cuttimes(data_10day, mins = "60")),
+  tar_target(allvertices_hours, unique(list_rbind(data_cut_hours)$Nili_id)),
+  tar_target(nnodes_hours, length(allvertices_hours)),
+  tar_target(flight_sris_hours, get_flight_sris(data_cut_hours, roostPolygons)),
+  tar_target(feeding_sris_hours, get_feeding_sris(data_cut_hours, roostPolygons)),
+  #### make graphs
+  tar_target(graphs_flight_hours, get_graphs(flight_sris_hours, allvertices)),
+  tar_target(graphs_feeding_hours, get_graphs(feeding_sris_hours, allvertices)),
+  #### make tensors
+  tar_target(tensor_flight_hours, get_node_tensor(graphs_flight_hours)),
+  tar_target(tensor_feeding_hours, get_node_tensor(graphs_feeding_hours)),
+  #### get nlayers
+  tar_target(nlayers_feeding_hours, length(tensor_feeding_hours)),
+  tar_target(nlayers_flight_hours, length(tensor_flight_hours)),
+  ### get reducibility curves
+  tar_target(red_flight_hours_cat,
+             get_reducibility(graphs_flight_hours, nlayers_flight_hours,
+                             nnodes_hours, type = "Categorical")),
+  tar_target(red_feeding_hours_cat,
+             get_reducibility(graphs_feeding_hours, nlayers_feeding_hours,
+                              nnodes_hours, type = "Categorical")),
+  tar_target(curves_hours,
+             pmap(.l = list(data = list(red_flight_hours_cat,
+                                        red_feeding_hours_cat),
+                            type = "categorical",
+                            situ = c("flight", "feeding")
+             ), ~data.frame(ent = ..1$gQualityFunction,
+                            timewindow = "1 hour",
+                            type = ..2, situ = ..3) %>%
+               dplyr::mutate(step = 1:nrow(.))) %>% purrr::list_rbind())
 )
