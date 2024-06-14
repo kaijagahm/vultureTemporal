@@ -6,19 +6,15 @@ read_from_path <- function(path){
   get(data_name)
 }
 
-prepare_data <- function(dataset, szn, cols_to_remove){
+prepare_data <- function(dataset, cols_to_remove){
   # Convert to SF
-  sfdata <- purrr::map(dataset, ~sf::st_as_sf(.x, coords = c("location_long", "location_lat"), crs = "WGS84", remove = F))
+  sfdata <- sf::st_as_sf(dataset, coords = c("location_long", "location_lat"), crs = "WGS84", remove = F)
   
   # Put all the seasons together and remove the columns we don't need
-  sfdata <- purrr::list_rbind(sfdata) %>%
+  sfdata <- sfdata %>%
     dplyr::select(-any_of(cols_to_remove)) 
   
-  # For our own sanity, let's just work with a single season
-  szndata <- sfdata %>%
-    filter(seasonUnique == szn)
-  
-  return(szndata)
+  return(sfdata)
 }
 
 cutdates <- function(vec, days){
@@ -58,11 +54,10 @@ cut_data <- function(data, timewindows){
   return(data_cut)
 }
 
-cut_roosts <- function(roosts, sznnumber, timewindows){
-  rsts <- roosts[[sznnumber]]
+cut_roosts <- function(roosts, timewindows){
   
   roosts_cut <- map(timewindows, ~{
-    rsts %>% mutate(int = cutdates(roost_date, .x))
+    roosts %>% mutate(int = cutdates(roost_date, .x))
   })
   
   roosts_cut <- map(roosts_cut, ~.x %>% 
@@ -113,6 +108,39 @@ get_roost_sris <- function(roostlist){
       dplyr::rename("weight" = "sri")
   })
   return(roost_sri_2)
+}
+
+binarize <- function(edgelist){
+  binary <- edgelist %>%
+    mutate(weight = ifelse(weight > 0, 1, 0))
+  return(binary)
+}
+
+collapse <- function(nestedlist){
+  collapsed <- map(nestedlist, ~as.data.frame(data.table::rbindlist(.x, idcol = "period"))) %>%
+    data.table::rbindlist(idcol = "timewindow") %>% 
+    as.data.frame()
+  return(collapsed)
+}
+
+get_aggregate_sris <- function(flight_sris, feeding_sris, roost_sris){
+  fl_bin <- map(flight_sris, ~map(.x, binarize)) %>% collapse() %>% mutate(situ = "flight")
+  fe_bin <- map(feeding_sris, ~map(.x, binarize)) %>% collapse() %>% mutate(situ = "flight")
+  ro_bin <- map(roost_sris, ~map(.x, binarize)) %>% collapse() %>% mutate(situ = "roosting")
+  all_bin <- bind_rows(fl_bin, fe_bin, ro_bin)
+  aggregated <- all_bin %>%
+    group_by(timewindow, period, ID1, ID2) %>%
+    summarize(sumweight = sum(weight),
+              weight = ifelse(sumweight > 0, 1, 0)) %>%
+    select(ID1, ID2, weight)
+  aggregated_split <- aggregated %>%
+    ungroup() %>%
+    group_by(timewindow) %>%
+    group_split(.keep = F)
+  aggregated_split_split <- map(aggregated_split, ~.x %>%
+                                  group_by(period) %>%
+                                  group_split(.keep = F))
+  return(aggregated_split_split)
 }
 
 get_graphs <- function(sris, verts){
@@ -292,4 +320,10 @@ get_reduc_curves_df <- function(red, timewindows, type, situ){
   dplyr::mutate(timestep = 1+(step-1)*timewindow) %>%
   dplyr::mutate(timewindow = factor(as.character(timewindow)))
   return(outdf)
+}
+
+get_reduc_curves_df_seasons <- function(red, type, situ){
+  df <- setNames(as.data.frame(red$gQualityFunction), "ent") %>%
+    dplyr::mutate(step = 1:nrow(.), type = type, situ = situ)
+  return(df)
 }
