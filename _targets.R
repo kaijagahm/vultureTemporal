@@ -62,8 +62,8 @@ list(
   tar_target(roostPolygons_file, "data/raw/roosts50_kde95_cutOffRegion.kml", format = "file"),
   tar_target(roostPolygons, st_read(roostPolygons_file)),
   
-  ## Time window analysis
-  # YEARS -------------------------------------------------------------------
+  # Time window analysis
+  #YEARS -------------------------------------------------------------------
   tar_target(data_years, function(alldata_prepped){
     yr_20_21 <- purrr::list_rbind(alldata_prepped[1:3])
     yr_21_22 <- purrr::list_rbind(alldata_prepped[4:6])

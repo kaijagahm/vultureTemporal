@@ -2,7 +2,7 @@ library(targets)
 library(tidyverse)
 source("R/functions.R")
 tar_load(curves)
-tar_load(curves_hours)
+#tar_load(curves_hours)
 tar_load(curves_seasons)
 theme_set(theme_minimal())
 

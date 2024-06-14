@@ -1,3 +1,3 @@
 main:
-  script: C:/Users/Kaija/Desktop/vultureTemporal/_targets.R
-  store: C:/Users/Kaija/Desktop/vultureTemporal/_targets
+  script: /Users/kaijagahmpersonalprojects/Desktop/RProjects/vultureTemporal/_targets.R
+  store: /Users/kaijagahmpersonalprojects/Desktop/RProjects/vultureTemporal/_targets

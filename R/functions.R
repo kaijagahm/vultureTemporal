@@ -45,7 +45,9 @@ cuttimes <- function(data, mins){
 
 cut_data <- function(data, timewindows){
   data_cut <- purrr::map(timewindows, ~{
-    data %>% dplyr::mutate(int = cutdates(dateOnly, .x))
+    out <- data
+    out$int <- cutdates(out$dateOnly, .x)
+    return(out)
   })
 
   # Okay, now we have the data classified into intervals, time to split each one into a list.
@@ -173,7 +175,7 @@ get_aggregate <- function(multi, nlayers, nnodes){
 }
 
 get_reducibility <- function(graphs, nlayers, nnodes, type, method = "ward.D2"){
-  without_zeroes <- map(graphs, ~delete_edges(.x, which(E(.x)$weight == 0))) # XXX REMOVE ZERO EDGES bc igraph doesn't know that they're zeroes
+  without_zeroes <- purrr::map(graphs, ~igraph::delete_edges(.x, which(igraph::E(.x)$weight == 0))) # XXX REMOVE ZERO EDGES bc igraph doesn't know that they're zeroes
   nodetensor <- purrr::map(without_zeroes, igraph::as_adjacency_matrix)
   if(type == "Categorical"){
     layertensor <- Matrix::Matrix(1, nlayers, nlayers) - muxViz:::speye(nlayers)
