@@ -68,3 +68,39 @@ gplots::heatmap.2(mat_fe, trace = "none", dendrogram = "row", density.info = "de
 gplots::heatmap.2(mat_ro, trace = "none", dendrogram = "row", density.info = "density", key.title = "", keysize = 2, key.xlab = "", key.ylab = "", main = "Co-roosting") 
 
 gplots::heatmap.2(mat_ag, trace = "none", dendrogram = "row", density.info = "density", key.title = "", keysize = 2, key.xlab = "", key.ylab = "", main = "Aggregate") 
+
+# So it is not the case that we see a seasonal signature--if that was true, then we'd expect the patterns to be more similar between seasons of the same type than between adjacent seasons. What we see is that one season basically follows from the last.
+
+## Okay, now the same for some of the daily ones
+tar_load(red_flight_cat)
+tar_load(red_feeding_cat)
+tar_load(red_roosting_cat)
+tar_load(red_aggregate_cat)
+mats_fl <- map(red_flight_cat, ~as.matrix(.x$JSD) %>%
+                 provideDimnames(., sep = "", list(as.character(1:length(.x$JSD)), 
+                                                   as.character(1:length(.x$JSD)))))
+mats_fe <- map(red_feeding_cat, ~as.matrix(.x$JSD) %>%
+                 provideDimnames(., sep = "", list(as.character(1:length(.x$JSD)), 
+                                                   as.character(1:length(.x$JSD)))))
+mats_ro <- map(red_roosting_cat, ~as.matrix(.x$JSD) %>%
+                 provideDimnames(., sep = "", list(as.character(1:length(.x$JSD)), 
+                                                   as.character(1:length(.x$JSD)))))
+mats_ag <- map(red_aggregate_cat, ~as.matrix(.x$JSD) %>%
+                 provideDimnames(., sep = "", list(as.character(1:length(.x$JSD)), 
+                                                   as.character(1:length(.x$JSD)))))
+## Let's see first about 25-day windows and then go backwards
+
+### 25-day windows
+gplots::heatmap.2(mats_fl[[4]], trace = "none", dendrogram = "row", density.info = "density", key.title = "", keysize = 2, key.xlab = "", key.ylab = "", main = "Co-flight") # interesting! We do not recover timescale from these.
+
+gplots::heatmap.2(mats_fe[[4]], trace = "none", dendrogram = "row", density.info = "density", key.title = "", keysize = 2, key.xlab = "", key.ylab = "", main = "Co-feeding")  # but we do here...
+
+gplots::heatmap.2(mats_ro[[4]], trace = "none", dendrogram = "row", density.info = "density", key.title = "", keysize = 2, key.xlab = "", key.ylab = "", main = "Co-roosting") # but not here!
+
+gplots::heatmap.2(mats_ag[[4]], trace = "none", dendrogram = "row", density.info = "density", key.title = "", keysize = 2, key.xlab = "", key.ylab = "", main = "Aggregate") # sortakinda, a mix
+
+### 10-day windows
+gplots::heatmap.2(mats_fl[[3]], trace = "none", dendrogram = "row", density.info = "density", key.title = "", keysize = 2, key.xlab = "", key.ylab = "", main = "Co-flight") # ish
+gplots::heatmap.2(mats_fe[[3]], trace = "none", dendrogram = "row", density.info = "density", key.title = "", keysize = 2, key.xlab = "", key.ylab = "", main = "Co-feeding")
+gplots::heatmap.2(mats_ro[[3]], trace = "none", dendrogram = "row", density.info = "density", key.title = "", keysize = 2, key.xlab = "", key.ylab = "", main = "Co-roosting") # generally higher similarity b/c denser, but still not necessarily in order...
+gplots::heatmap.2(mats_ag[[3]], trace = "none", dendrogram = "row", density.info = "density", key.title = "", keysize = 2, key.xlab = "", key.ylab = "", main = "Aggregate")
