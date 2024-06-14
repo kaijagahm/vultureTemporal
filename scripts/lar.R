@@ -198,26 +198,30 @@ lars %>%
   facet_grid(rows = vars(lag), cols = vars(situ)) # hmm, this doesn't tell me all that much... but I guess we should probably be basing things on an n of at least 3, in order for the means to mean anything.
 
 head(lars)
-lars_n3 <- lars %>%
-  filter(n >= 3)
+lars_n10 <- lars %>%
+  filter(n >= 10)
 
-lars %>%
+lars_n10 %>%
   ggplot(aes(x = log(mn), col = factor(lag)))+
   geom_density()+
   theme_classic()+
   facet_wrap(~situ)
 
-lars %>%
+lars_n10_nonzero <- lars_n10 %>%
+  filter(mn > 0)
+
+# attempting to plot the LARs
+lars_n10 %>%
   ggplot(aes(x = factor(lag), y = mn))+
-  geom_boxplot()+ 
+  geom_boxplot(outlier.size = 0.1)+ 
   facet_wrap(~situ, scales = "free")+
   theme_classic()
 
-lars %>%
+lars_n10 %>%
   ggplot(aes(x = factor(lag), y = log(mn)))+
   geom_boxplot(outlier.size = 0.1)+ 
   facet_wrap(~situ, scales = "free")+
   theme_classic()
 
-# I don't know how to make this not be such a tiny number...
+# I can't tell if these results are real (i.e. that there just aren't that many differences in reassociation probability over this timescale at all) or if there's something wrong with how I'm calculating this. Really would need to test the method on a simulation to confirm that it's working as intended, but I don't think I have time to do that.
 

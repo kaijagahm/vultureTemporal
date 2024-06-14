@@ -1,0 +1,41 @@
+---
+title: "Untitled"
+format: html
+editor: visual
+---
+
+```{r}
+library(targets)
+library(tidyverse)
+tar_config_set(
+  script = here::here('_targets.R'),
+  store = here::here('_targets')
+)
+theme_set(theme_classic())
+```
+
+Visualize the reducibility curves
+
+```{r}
+tar_load(curves)
+tar_load(curves_hours)
+
+glimpse(curves)
+glimpse(curves_hours)
+
+curves %>%
+  ggplot(aes(x = timestep, y = ent, col = situ, 
+             group = interaction(situ, type)))+
+  geom_line(aes(linetype = type))+
+  facet_wrap(~timewindow, scales = "free")+
+  ylab("Difference in relative entropy")+
+  xlab("Amount of aggregation")
+
+curves_hours %>%
+  filter(!is.na(ent)) %>%
+  ggplot(aes(x = step, y = ent, col = situ,
+             group = interaction(situ, type)))+
+  geom_line(aes(linetype = type))+
+  ylab("Difference in relative entropy")+
+  xlab("Amount of aggregation")
+```
