@@ -128,24 +128,42 @@ collapse <- function(nestedlist){
   return(collapsed)
 }
 
-get_aggregate_sris <- function(flight_sris, feeding_sris, roost_sris){
-  fl_bin <- map(flight_sris, ~map(.x, binarize)) %>% collapse() %>% mutate(situ = "flight")
-  fe_bin <- map(feeding_sris, ~map(.x, binarize)) %>% collapse() %>% mutate(situ = "flight")
-  ro_bin <- map(roost_sris, ~map(.x, binarize)) %>% collapse() %>% mutate(situ = "roosting")
+get_aggregate_sris <- function(flight_sris, feeding_sris, roost_sris, list = F){
+  if(list){
+    fl_bin <- map(flight_sris, ~map(.x, binarize)) %>% collapse() %>% mutate(situ = "flight")
+    fe_bin <- map(feeding_sris, ~map(.x, binarize)) %>% collapse() %>% mutate(situ = "flight")
+    ro_bin <- map(roost_sris, ~map(.x, binarize)) %>% collapse() %>% mutate(situ = "roosting")
+  }else{
+    fl_bin <- map(flight_sris, binarize) %>% data.table::rbindlist(idcol = "period") %>% as.data.frame() %>% mutate(situ = "flight")
+    fe_bin <- map(feeding_sris, binarize) %>% data.table::rbindlist(idcol = "period") %>% as.data.frame() %>% mutate(situ = "feeding")
+    ro_bin <- map(roost_sris, binarize) %>% data.table::rbindlist(idcol = "period") %>% as.data.frame() %>% mutate(situ = "roosting")
+  }
   all_bin <- bind_rows(fl_bin, fe_bin, ro_bin)
-  aggregated <- all_bin %>%
-    group_by(timewindow, period, ID1, ID2) %>%
-    summarize(sumweight = sum(weight),
-              weight = ifelse(sumweight > 0, 1, 0)) %>%
-    select(ID1, ID2, weight)
-  aggregated_split <- aggregated %>%
-    ungroup() %>%
-    group_by(timewindow) %>%
-    group_split(.keep = F)
-  aggregated_split_split <- map(aggregated_split, ~.x %>%
-                                  group_by(period) %>%
-                                  group_split(.keep = F))
-  return(aggregated_split_split)
+  if(list){
+    aggregated <- all_bin %>%
+      group_by(timewindow, period, ID1, ID2) %>%
+      summarize(sumweight = sum(weight),
+                weight = ifelse(sumweight > 0, 1, 0)) %>%
+      select(ID1, ID2, weight)
+    aggregated_split <- aggregated %>%
+      ungroup() %>%
+      group_by(timewindow) %>%
+      group_split(.keep = F)
+    aggregated_split_split <- map(aggregated_split, ~.x %>%
+                                    group_by(period) %>%
+                                    group_split(.keep = F))
+    return(aggregated_split_split)
+  }else{
+    aggregated <- all_bin %>%
+      group_by(period, ID1, ID2) %>%
+      summarize(sumweight = sum(weight),
+                weight = ifelse(sumweight > 0, 1, 0)) %>%
+      select(ID1, ID2, weight)
+    aggregated_split <- aggregated %>%
+      group_by(period) %>%
+      group_split(.keep = F)
+    return(aggregated_split)
+  }
 }
 
 get_graphs <- function(sris, verts){

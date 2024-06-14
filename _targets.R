@@ -92,19 +92,23 @@ list(
   tar_target(roost_sris_seasons, get_roost_sris(roosts_seasons)),
   tar_target(allvertices_seasons, unique(list_rbind(data_seasons)$Nili_id)),
   tar_target(nnodes_seasons, length(allvertices_seasons)),
-  tar_target(aggregate_sris_seasons, NULL),
+  tar_target(aggregate_sris_seasons, get_aggregate_sris(flight_sris_seasons, feeding_sris_seasons, roost_sris_seasons, list = F)),
+  
   ### make graphs
   tar_target(graphs_flight_seasons, get_graphs(flight_sris_seasons, allvertices_seasons)),
   tar_target(graphs_feeding_seasons, get_graphs(feeding_sris_seasons, allvertices_seasons)),
   tar_target(graphs_roosting_seasons, get_graphs(roost_sris_seasons, allvertices_seasons)),
+  tar_target(graphs_aggregate_seasons, get_graphs(aggregate_sris_seasons, allvertices_seasons)),
   ### Make tensors
   tar_target(tensor_flight_seasons, get_node_tensor(graphs_flight_seasons)),
   tar_target(tensor_feeding_seasons, get_node_tensor(graphs_feeding_seasons)),
   tar_target(tensor_roosting_seasons, get_node_tensor(graphs_roosting_seasons)),
+  tar_target(tensor_aggregate_seasons, get_node_tensor(graphs_aggregate_seasons)),
   ### get nlayers
   tar_target(nlayers_flight_seasons, length(tensor_flight_seasons)),
   tar_target(nlayers_feeding_seasons, length(tensor_feeding_seasons)),
   tar_target(nlayers_roosting_seasons, length(tensor_roosting_seasons)),
+  tar_target(nlayers_aggregate_seasons, length(tensor_aggregate_seasons)),
   ### get reducibility curves
   tar_target(red_flight_cat_seasons, get_reducibility(graphs_flight_seasons,
                                                       nlayers_flight_seasons,
@@ -118,10 +122,15 @@ list(
                                                       nlayers_roosting_seasons,
                                                       nnodes_seasons,
                                                       type = "Categorical")),
+  tar_target(red_aggregate_cat_seasons, get_reducibility(graphs_aggregate_seasons,
+                                                        nlayers_aggregate_seasons,
+                                                        nnodes_seasons,
+                                                        type = "Categorical")),
   tar_target(curves_seasons, purrr::list_rbind(list(
     get_reduc_curves_df_seasons(red_flight_cat_seasons, "categorical", "flight"),
     get_reduc_curves_df_seasons(red_feeding_cat_seasons, "categorical", "feeding"),
-    get_reduc_curves_df_seasons(red_roosting_cat_seasons, "categorical", "roosting")))),
+    get_reduc_curves_df_seasons(red_roosting_cat_seasons, "categorical", "roosting"),
+    get_reduc_curves_df_seasons(red_aggregate_cat_seasons, "categorical", "aggregate")))),
 
   # DAYS ---------------------------------------------------------------------
   ### select one season to work with (Summer 2023). Including all three social situations.
@@ -138,7 +147,7 @@ list(
   tar_target(roost_sris, map(roosts_cut, ~get_roost_sris(.x))),
   tar_target(allvertices, map(data_cut, ~unique(list_rbind(.x)$Nili_id))),
   tar_target(nnodes, map_dbl(allvertices, length)),
-  tar_target(aggregate_sris, get_aggregate_sris(flight_sris, feeding_sris, roost_sris)),
+  tar_target(aggregate_sris, get_aggregate_sris(flight_sris, feeding_sris, roost_sris, list = T)),
   ### Make graphs
   tar_target(graphs_flight, map2(flight_sris, allvertices, ~get_graphs(.x, .y))),
   tar_target(graphs_feeding, map2(feeding_sris, allvertices, ~get_graphs(.x, .y))),
