@@ -104,3 +104,24 @@ gplots::heatmap.2(mats_fl[[3]], trace = "none", dendrogram = "row", density.info
 gplots::heatmap.2(mats_fe[[3]], trace = "none", dendrogram = "row", density.info = "density", key.title = "", keysize = 2, key.xlab = "", key.ylab = "", main = "Co-feeding")
 gplots::heatmap.2(mats_ro[[3]], trace = "none", dendrogram = "row", density.info = "density", key.title = "", keysize = 2, key.xlab = "", key.ylab = "", main = "Co-roosting") # generally higher similarity b/c denser, but still not necessarily in order...
 gplots::heatmap.2(mats_ag[[3]], trace = "none", dendrogram = "row", density.info = "density", key.title = "", keysize = 2, key.xlab = "", key.ylab = "", main = "Aggregate")
+
+# Get similarities --------------------------------------------------------
+getorders <- function(list){
+  out <- purrr::map(list, ~data.frame(order = hclust(dist(.x))$order,
+                                      rank = 1:nrow(.x))) %>%
+    list_rbind(names_to = "tw")
+  return(out)
+}
+orders_fl <- getorders(mats_fl) %>% mutate(situ = "fl")
+orders_fe <- getorders(mats_fe) %>% mutate(situ = "fe")
+orders_ro <- getorders(mats_ro) %>% mutate(situ = "ro")
+orders_ag <- getorders(mats_ag) %>% mutate(situ = "ag")
+orders <- bind_rows(orders_fl, orders_fe, orders_ro, orders_ag)
+
+orders %>%
+  ggplot(aes(x = rank, y = rev(order), col = situ))+
+  geom_point(alpha = 0.5)+
+  geom_line()+
+  facet_wrap(~tw, scales = "free")+
+  theme_void()
+
