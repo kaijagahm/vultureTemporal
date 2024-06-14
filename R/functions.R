@@ -1,5 +1,8 @@
 # Functions for targets pipeline
 
+cc <- list("breedingColor" = "#2FF8CA", "summerColor" = "#CA2FF8", "fallColor" = "#F8CA2F", flightColor = "dodgerblue", roostingColor = "olivedrab4", "feedingColor" = "gold")
+situcolors <- c(cc$feedingColor, cc$flightColor, cc$roostingColor)
+
 read_from_path <- function(path){
   envir <- environment()
   data_name <- load(path, envir = envir)
