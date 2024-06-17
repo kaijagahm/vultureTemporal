@@ -2,8 +2,8 @@ name|type|data|command|depend|seed|path|time|size|bytes|format|repository|iterat
 ag_feeding|stem|67cdaaf08e9305f9|a0089c4948013222|641864fd17b3cbc2|1991472638||t19838.9321969212s|01bfc1cd42dfd67e|106156|rds|local|vector|||0.35||
 ag_flight|stem|15bbbe6e01292989|22a1094e73ab42dd|0b15c85d71c5657f|95754799||t19838.9321924029s|4720333687733e5e|77151|rds|local|vector|||0.28||
 ag_roosting|stem|efc76dc635c8d721|c29d82f1973e748c|2d3cece0c8c963d4|-1985957816||t19838.9353099343s|b4c4204ed2e7a197|36041|rds|local|vector|||0.3||
-aggregate_sris|stem|a6270323d9360363|a9648980b162aaf4|81a5d93ba8873b1c|-1611260394||t19888.9688854941s|77d8fe79d452286c|352334|rds|local|vector|||5.03||
-aggregate_sris_seasons|stem|7278b7ba3dcf9ab9|e215025fbbe55676|ef46db3751d8e999|-2007236696||t19888.9328461637s|3bd8f66805fd112b|45|rds|local|vector|||0||
+aggregate_sris|stem|a6270323d9360363|9364d0a8caee1904|a5dd159dc8b51b33|-1611260394||t19891.7008924922s|77d8fe79d452286c|352334|rds|local|vector|||6.76||
+aggregate_sris_seasons|stem|273e8d1e97ab1a48|ebcc8530265872ad|a4f0a01b5dd6008c|-2007236696||t19891.7007980071s|2eddce6312c84d4c|13889|rds|local|vector|||0.4||
 alldata|stem|67e806398895c844|80df19d42e3579bc|feb3a5f5552920af|-821027226||t19888.9341841347s|dfc48be37e39be2b|158986961|rds|local|vector|||26.25||
 alldata_file|stem|3eeb26aed5513cf2|6304f96684ddb724|ef46db3751d8e999|-1159902181|data/fromMvmtSoc/downsampled_10min_forSocial.Rda|t19773.9945606701s|800583624f26dfeb|158986817|file|local|vector|||1.573|RGL unable to open X11 display. rgl.init failed, running with rgl.useNULL  TRUE.|
 alldata_prepped|stem|ae7f751b702c0d70|f5dc325b54fde771|b14a7f97efb87095|-889520384||t19888.9348453241s|bb0cac2fb7513ce6|94716087|rds|local|vector|||3.17||
@@ -16,7 +16,7 @@ collapse|function|e5b26670f7223c0d|||||||||||||||
 cols_to_remove|stem|729036fa2af8509d|76d045ee03f3575d|ef46db3751d8e999|321494488||t19888.9328411889s|c952e8967c1cd07e|499|rds|local|vector|||2.06||
 curves|stem|3009c2d022ab1864|b754f43e569a9048|f275d06151a44361|-2083690060||t19889.2450946615s|92cf5a44928de2fb|6153|rds|local|vector|||0.05||
 curves_hours|stem|a655fabfa051a127|2c1da96c2452e9e7|7124f115de9d002f|-642870298||t19889.2450938056s|5c5938134171e69c|9844|rds|local|vector|||0.02||
-curves_seasons|stem|b74a7a7dd881b930|54387c99cd5e7b84|889b74838f9c4423|-103825126||t19888.9691874312s|edc8a7d406f211bc|424|rds|local|vector|||0.01||
+curves_seasons|stem|691b8777ba42f1c9|e987e74e86d8136d|e3118bd2cfe41f45|-103825126||t19891.7009172276s|bdce81a6e361fdee|506|rds|local|vector|||0.03||
 cut_data|function|d5648c0757603a88|||||||||||||||
 cut_roosts|function|354de256ee961346|||||||||||||||
 cutdates|function|89585defeef0f583|||||||||||||||
@@ -55,6 +55,7 @@ get_tensor|function|de3b204bae680999|||||||||||||||
 GetMultilayerReducibility|function|2dd50e2280cced4f|||||||||||||||
 GetMultilayerReducibility_KG|function|9214b228ccf409dc|||||||||||||||
 graphs_aggregate|stem|01fcd5b42306ac4e|c30989025bb7a5db|01f45272bcd9109b|1174295886||t19888.9690270837s|d0e18a8af06bceaf|397062|rds|local|vector|||0.43||
+graphs_aggregate_seasons|stem|3727ce0d9f515369|06b1530d9be4815c|39811562de4c946f|-126303407||t19891.7008936131s|7c2fb21c36eab41d|34112|rds|local|vector|||0.02||
 graphs_feeding|stem|5bb71bb1c9c42e24|5ecc2b9d2923515d|ca67117c73e6cf90|-578856413||t19888.9569267665s|86064d20ba9eddda|344974|rds|local|vector|||0.2||
 graphs_feeding_hours|stem|6c0ab530e67f7ae8|b78b606bce967e99|112601f92cea9bcb|583705574||t19888.9690194379s|fa439d3212632498|130533|rds|local|vector|||4.28||
 graphs_feeding_seasons|stem|358b28a7e57cf9d3|f07c10cfce1d2749|5ccd83e228bb7fb9|-41413242||t19888.9404885394s|d2e8f0de7917d7d9|90265|rds|local|vector|||0.01||
@@ -74,6 +75,7 @@ multis_flight|stem|1b10bcfa7f6c7711|462fd0f04abdc8d5|d0d07590df7e6889|637885583|
 multis_roosting|stem|e1ecff90e3acaaee|320868d2d8dfdd22|a9e1fb05b79cecce|1292818405||t19838.9321847652s|4d14aad8f648ac4f|250152|rds|local|vector|||0.05||
 nlayers|stem|bca158d220278316|ef48411f316621b5|ae59b3ad8b6c6945|-1360089476||t19836.7377440179s|9e0babf6e6ead64d|66|rds|local|vector|||0||
 nlayers_aggregate|stem|e3ec31173c27e187|ff33318baeb7e768|7292109ad3c44257|-1310097506||t19888.9713963041s|996925e1ed10e0be|63|rds|local|vector|||0||
+nlayers_aggregate_seasons|stem|ba6a230c78ac588d|3e0d77ad60151004|4f3272dd976bd6e9|-535219343||t19891.7008954389s|ba7baa2be0c9b1c9|50|rds|local|vector|||0||
 nlayers_feeding|stem|e3ec31173c27e187|7ba3a1434fca1a2c|c60705206bc7bda9|-645983896||t19888.9690724245s|996925e1ed10e0be|63|rds|local|vector|||0||
 nlayers_feeding_hours|stem|8e72a4525fb95bbd|12fefe29d3f2f83c|e5ea57d4797fc54f|1722023795||t19888.9713961233s|7593c903cc1c2e97|52|rds|local|vector|||0||
 nlayers_feeding_seasons|stem|ba6a230c78ac588d|b48404236df07d47|dac5c67eb2528345|1541179866||t19888.9688933054s|ba7baa2be0c9b1c9|50|rds|local|vector|||0||
@@ -88,6 +90,7 @@ nnodes_seasons|stem|a083c5a8048043c7|a3f34b52280a22cb|253a0cad805b5851|-20459765
 prepare_data|function|026245e3e2b1d823|||||||||||||||
 read_from_path|function|5b3081fb53f5e373|||||||||||||||
 red_aggregate_cat|stem|bcb00bd26833df09|8f35ce60366912a8|c32bee6bbefdca1c|-144782019||t19889.2450933042s|390ef0222b89918b|102812|rds|local|vector|||108.24||
+red_aggregate_cat_seasons|stem|d4cb63a7d1545e5e|2c171ad8344840e6|db23b94852a254e2|965397727||t19891.7009158696s|4ff9637f778ccbd4|801|rds|local|vector|||1.71||
 red_aggregate_ord|stem|91362dd44175a608|4ca223284fb1465e|8d46e772fb286e07|133008596||t19887.6852872084s|7230254b6ecce521|3864|rds|local|vector|||6.46||
 red_feeding_cat|stem|9da3bb1d7e09e003|4b606f1bcee50493|3c57ab6d23fa19a8|-1660765752||t19888.9713955403s|7d0241c843484c7d|74420|rds|local|vector|||84.07||
 red_feeding_cat_seasons|stem|f2f2c66c7335f1f9|a65f83fdb2b27a95|aa81271837f34767|-884481784||t19888.9690715568s|012102d40bdf20d0|802|rds|local|vector|||1.05||
@@ -119,6 +122,7 @@ season_names|stem|63da22d5129089ac|2b8e63f08682d7fa|2ce87415f2d1bf9c|2004557824|
 situcolors|object|e7fb11efe84b4d94|||||||||||||||
 summer2023data|stem|96fba9cde8be0c56|4334cabf2ce3a8a8|648ab3b322738946|223171525||t19888.9355974241s|e97a2908e0153a59|19576643|rds|local|vector|||0||
 summer2023roosts|stem|951f230949c8a26c|8aeca52eadc83753|de1dcc78fd2ccd93|1446464004||t19888.9356002382s|402128d4c33ecd8a|370022|rds|local|vector|||0||
+tensor_aggregate_seasons|stem|5fdd734ff49248b2|5da014a33e2fb0d0|fcc283fcb42a1027|315111533||t19891.7008948033s|c5f3a6201b1bf531|19039|rds|local|vector|||0.05||
 tensor_feeding_hours|stem|83c1d99f2c11625f|fa66ad123ec3b15b|e305f3fe25e47e33|1258142859||t19888.969176361s|b5101641c15fb956|78261|rds|local|vector|||4.2||
 tensor_feeding_seasons|stem|744404caea7692e5|95c609b9d39b2346|6d2f85db6fccdefc|82674230||t19888.9569168055s|90469fc1c44d20f8|104076|rds|local|vector|||0.03||
 tensor_flight_hours|stem|7abbaa634b53fd5e|3fc5ec895dd820ce|bbc24e5c6f603ce3|2131585593||t19888.9691253173s|438abf4003f86575|79569|rds|local|vector|||4.37||
