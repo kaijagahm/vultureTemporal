@@ -4,7 +4,7 @@ source("R/functions.R")
 tar_load(curves)
 curves <- curves %>%
   group_by(situ, timewindow) %>%
-  mutate(ent_norm = ent/max(ent))
+  mutate(ent_norm = ent/max(ent, na.rm = T))
 #tar_load(curves_hours)
 # curves_hours <- curves_hours %>%
 #   group_by(situ, timewindow) %>%
@@ -12,7 +12,11 @@ curves <- curves %>%
 tar_load(curves_seasons)
 curves_seasons <- curves_seasons %>%
   group_by(situ) %>%
-  mutate(ent_norm = ent/max(ent))
+  mutate(ent_norm = ent/max(ent, na.rm = T))
+tar_load(curves_hours)
+curves_hours <- curves_hours %>%
+  group_by(situ) %>%
+  mutate(ent_norm = ent/max(ent, na.rm = T))
 theme_set(theme_minimal())
 
 ## Seasons
@@ -40,6 +44,17 @@ curves %>%
   scale_color_manual(name = "Situation", values = c("firebrick3", situcolors))+
   theme(text = element_text(size = 14))
 
+## Hours
+curves_hours %>% 
+  filter(!is.na(ent_norm)) %>%
+  ggplot(aes(x = step, y = ent_norm, col = situ))+
+  geom_point(alpha = 0.7)+
+  geom_line(alpha = 0.7)+
+  theme_classic()+
+  xlab("Amount of aggregation")+
+  ylab("Relative entropy (normalized)")+
+  scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor))+
+  theme(text = element_text(size = 14))
 
 # Heat maps ---------------------------------------------------------------
 ## Let's start with seasons so it's more manageable
