@@ -2,18 +2,23 @@ library(targets)
 library(tidyverse)
 source("R/functions.R")
 tar_load(curves)
+tar_load(curves_seasons)
+tar_load(curves_hours)
+tar_load(red_flight_cat)
+tar_load(red_feeding_cat)
+tar_load(red_roosting_cat)
+tar_load(red_aggregate_cat)
+tar_load(red_flight_cat_seasons)
+tar_load(red_feeding_cat_seasons)
+tar_load(red_roosting_cat_seasons)
+tar_load(red_aggregate_cat_seasons)
+tar_load(season_names)
 curves <- curves %>%
   group_by(situ, timewindow) %>%
   mutate(ent_norm = ent/max(ent, na.rm = T))
-#tar_load(curves_hours)
-# curves_hours <- curves_hours %>%
-#   group_by(situ, timewindow) %>%
-#   mutate(ent_norm = ent/max(ent))
-tar_load(curves_seasons)
 curves_seasons <- curves_seasons %>%
   group_by(situ) %>%
   mutate(ent_norm = ent/max(ent, na.rm = T))
-tar_load(curves_hours)
 curves_hours <- curves_hours %>%
   group_by(situ) %>%
   mutate(ent_norm = ent/max(ent, na.rm = T))
@@ -58,11 +63,6 @@ curves_hours %>%
 
 # Heat maps ---------------------------------------------------------------
 ## Let's start with seasons so it's more manageable
-tar_load(red_flight_cat_seasons)
-tar_load(red_feeding_cat_seasons)
-tar_load(red_roosting_cat_seasons)
-tar_load(red_aggregate_cat_seasons)
-tar_load(season_names)
 season_names_brief <- c("[1] F20", "[2] B21", "[3] S21", "[4] F21", "[5] B22", "[6] S22", "[7] F22", "[8] B23", "[9] S23")
 mat_fl <- provideDimnames(as.matrix(red_flight_cat_seasons$JSD), sep = "",
                        list(season_names_brief, season_names_brief))
@@ -87,10 +87,6 @@ gplots::heatmap.2(mat_ag, trace = "none", dendrogram = "row", density.info = "de
 # So it is not the case that we see a seasonal signature--if that was true, then we'd expect the patterns to be more similar between seasons of the same type than between adjacent seasons. What we see is that one season basically follows from the last.
 
 ## Okay, now the same for some of the daily ones
-tar_load(red_flight_cat)
-tar_load(red_feeding_cat)
-tar_load(red_roosting_cat)
-tar_load(red_aggregate_cat)
 mats_fl <- map(red_flight_cat, ~as.matrix(.x$JSD) %>%
                  provideDimnames(., sep = "", list(as.character(1:length(.x$JSD)), 
                                                    as.character(1:length(.x$JSD)))))
@@ -119,3 +115,6 @@ gplots::heatmap.2(mats_fl[[3]], trace = "none", dendrogram = "row", density.info
 gplots::heatmap.2(mats_fe[[3]], trace = "none", dendrogram = "row", density.info = "density", key.title = "", keysize = 2, key.xlab = "", key.ylab = "", main = "Co-feeding")
 gplots::heatmap.2(mats_ro[[3]], trace = "none", dendrogram = "row", density.info = "density", key.title = "", keysize = 2, key.xlab = "", key.ylab = "", main = "Co-roosting") # generally higher similarity b/c denser, but still not necessarily in order...
 gplots::heatmap.2(mats_ag[[3]], trace = "none", dendrogram = "row", density.info = "density", key.title = "", keysize = 2, key.xlab = "", key.ylab = "", main = "Aggregate")
+
+## Hourly
+tar_load()
