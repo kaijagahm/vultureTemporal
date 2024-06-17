@@ -139,20 +139,32 @@ list(
 
   ### Cut data
   tar_target(timewindows, c(1, 5, 10, 25)),
+  tar_target(timewindows_heuristic, seq(from = 1, to = 50, by = 5)),
   tar_target(data_cut, cut_data(summer2023data, timewindows)),
+  tar_target(data_cut_heuristic, cut_data(summer2023data, timewindows_heuristic)),
   tar_target(roosts_cut, cut_roosts(summer2023roosts, timewindows)),
+  tar_target(roosts_cut_heuristic, cut_roosts(summer2023roosts, timewindows_heuristic)),
   ### Prepare edges
   tar_target(flight_sris, map(data_cut, ~get_flight_sris(.x, roostPolygons))),
   tar_target(feeding_sris, map(data_cut, ~get_feeding_sris(.x, roostPolygons))),
   tar_target(roost_sris, map(roosts_cut, ~get_roost_sris(.x))),
+  tar_target(flight_sris_heuristic, map(data_cut_heuristic, ~get_flight_sris(.x, roostPolygons))),
+  tar_target(feeding_sris_heuristic, map(data_cut_heuristic, ~get_feeding_sris(.x, roostPolygons))),
+  tar_target(roost_sris_heuristic, map(roosts_cut_heuristic, ~get_roost_sris(.x))),
   tar_target(allvertices, map(data_cut, ~unique(list_rbind(.x)$Nili_id))),
   tar_target(nnodes, map_dbl(allvertices, length)),
   tar_target(aggregate_sris, get_aggregate_sris(flight_sris, feeding_sris, roost_sris, list = T)),
+  tar_target(aggregate_sris_heuristic, get_aggregate_sris(flight_sris_heuristic, feeding_sris_heuristic, roost_sris_heuristic, list = T)),
   ### Make graphs
   tar_target(graphs_flight, map2(flight_sris, allvertices, ~get_graphs(.x, .y))),
   tar_target(graphs_feeding, map2(feeding_sris, allvertices, ~get_graphs(.x, .y))),
   tar_target(graphs_roosting, map2(roost_sris, allvertices, ~get_graphs(.x, .y))),
   tar_target(graphs_aggregate, map2(aggregate_sris, allvertices, ~get_graphs(.x, .y))),
+  
+  tar_target(graphs_flight_heuristic, map2(flight_sris_heuristic, allvertices, ~get_graphs(.x, .y))),
+  tar_target(graphs_feeding_heuristic, map2(feeding_sris_heuristic, allvertices, ~get_graphs(.x, .y))),
+  tar_target(graphs_roosting_heuristic, map2(roost_sris_heuristic, allvertices, ~get_graphs(.x, .y))),
+  tar_target(graphs_aggregate_heuristic, map2(aggregate_sris_heuristic, allvertices, ~get_graphs(.x, .y))),
   ### Make tensors
   tar_target(tensors_flight, map(graphs_flight, get_node_tensor)),
   tar_target(tensors_feeding, map(graphs_feeding, get_node_tensor)),
