@@ -69,13 +69,13 @@ maxdate <- min(data_cut[[1]][[length(data_cut[[1]])]]$dateOnly)
 dates <- seq.Date(from = lubridate::ymd(mindate), to = lubridate::ymd(maxdate), by = "day")
 datesshort <- dates[1:(length(dates)-1)]
 gfls_plots_days <- map2(gfls_days[1:length(datesshort)], datesshort,
-                   ~makeplot(.x, .y, cc$flightColor, layout))
-gfes_plots <- map2(gfes_days[1:length(datesshort)], datesshort,
-                   ~makeplot(.x, .y, cc$feedingColor, layout))
-gros_plots <- map2(gros_days[1:length(datesshort)], datesshort, 
-                   ~makeplot(.x, .y, cc$roostingColor, layout))
-gags_plots <- map2(gags_days[1:length(datesshort)], datesshort, 
-                   ~makeplot(.x, .y, "firebrick3", layout))
+                        ~makeplot(.x, .y, cc$flightColor, layout))
+gfes_plots_days <- map2(gfes_days[1:length(datesshort)], datesshort,
+                        ~makeplot(.x, .y, cc$feedingColor, layout))
+gros_plots_days <- map2(gros_days[1:length(datesshort)], datesshort, 
+                        ~makeplot(.x, .y, cc$roostingColor, layout))
+gags_plots_days <- map2(gags_days[1:length(datesshort)], datesshort, 
+                        ~makeplot(.x, .y, "firebrick3", layout))
 
 walk2(gfls_plots, season_names, ~{
   ggsave(.x, filename = here::here(paste0("fig/abs2024graphs/seasons/flight/", .y, ".png")),
@@ -90,16 +90,20 @@ walk2(gros_plots, season_names, ~{
          width = 6, height = 8, units = "in")
 })
 
-walk2(gfls_plots_days, season_names, ~{
-  ggsave(.x, filename = here::here(paste0("fig/abs2024graphs/seasons/flight/", .y, ".png")),
+walk2(gfls_plots_days, datesshort, ~{
+  ggsave(.x, filename = here::here(paste0("fig/abs2024graphs/days/flight/", .y, ".png")),
          width = 6, height = 8, units = "in")
 })
-walk2(gfes_plots, season_names, ~{
-  ggsave(.x, filename = here::here(paste0("fig/abs2024graphs/seasons/feeding/", .y, ".png")),
+walk2(gfes_plots_days, datesshort, ~{
+  ggsave(.x, filename = here::here(paste0("fig/abs2024graphs/days/feeding/", .y, ".png")),
          width = 6, height = 8, units = "in")
 })
-walk2(gros_plots, season_names, ~{
-  ggsave(.x, filename = here::here(paste0("fig/abs2024graphs/seasons/roosting/", .y, ".png")),
+walk2(gros_plots_days, datesshort, ~{
+  ggsave(.x, filename = here::here(paste0("fig/abs2024graphs/days/roosting/", .y, ".png")),
+         width = 6, height = 8, units = "in")
+})
+walk2(gags_plots_days, datesshort, ~{
+  ggsave(.x, filename = here::here(paste0("fig/abs2024graphs/days/aggregate/", .y, ".png")),
          width = 6, height = 8, units = "in")
 })
 
@@ -111,6 +115,8 @@ savegif <- function(dir, name, spf, width = 600, height = 800){
 dirs <- paste0("fig/abs2024graphs/seasons/", c("flight", "feeding", "roosting"), "/")
 names <- paste0("fig/abs2024graphs/gifs/", c("flight", "feeding", "roosting"), "_seasons.gif")
 
+dirs_days <- paste0("fig/abs2024graphs/days/", c("flight", "feeding", "roosting", "aggregate"), "/")
+names_days <- paste0("fig/abs2024graphs/gifs/", c("flight", "feeding", "roosting", "aggregate"), "_days.gif")
+
 map2(dirs, names, ~savegif(dir = here::here(.x), name = .y, spf = 0.2))
-
-
+map2(dirs_days, names_days, ~savegif(dir = here::here(.x), name = .y, spf = 0.1))
