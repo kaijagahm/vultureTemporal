@@ -19,11 +19,11 @@ source(here::here("R/functions.R"))
 ## Load data
 
 ```{r}
-tar_load(timewindows)
-tar_load(graphs_flight)
-tar_load(graphs_feeding)
-tar_load(graphs_roosting)
-tar_load(graphs_aggregate)
+tar_load(timewindows_heuristic)
+tar_load(graphs_flight_heuristic)
+tar_load(graphs_feeding_heuristic)
+tar_load(graphs_roosting_heuristic)
+tar_load(graphs_aggregate_heuristic)
 ```
 
 General TWIN algorithm from the paper Meaningful Selection of Temporal Resolution for Dynamic Networks (Sulo et al. 2010)
@@ -52,18 +52,18 @@ nonzero <- function(g){
   return(gg)
 }
 
-fl_density <- map(graphs_flight, ~map_dbl(.x, ~igraph::edge_density(nonzero(.x))))
-fl_trans <- map(graphs_flight, ~map_dbl(.x, ~igraph::transitivity(nonzero(.x))))
-fl_diam <- map(graphs_flight, ~map_dbl(.x, ~igraph::diameter(nonzero(.x))))
-fe_density <- map(graphs_feeding, ~map_dbl(.x, ~igraph::edge_density(nonzero(.x))))
-fe_trans <- map(graphs_feeding, ~map_dbl(.x, ~igraph::transitivity(nonzero(.x))))
-fe_diam <- map(graphs_feeding, ~map_dbl(.x, ~igraph::diameter(nonzero(.x))))
-ro_density <- map(graphs_roosting, ~map_dbl(.x, ~igraph::edge_density(nonzero(.x))))
-ro_trans <- map(graphs_roosting, ~map_dbl(.x, ~igraph::transitivity(nonzero(.x))))
-ro_diam <- map(graphs_roosting, ~map_dbl(.x, ~igraph::diameter(nonzero(.x))))
-ag_density <- map(graphs_aggregate, ~map_dbl(.x, ~igraph::edge_density(nonzero(.x))))
-ag_trans <- map(graphs_aggregate, ~map_dbl(.x, ~igraph::transitivity(nonzero(.x))))
-ag_diam <- map(graphs_aggregate, ~map_dbl(.x, ~igraph::diameter(nonzero(.x))))
+fl_density <- map(graphs_flight_heuristic, ~map_dbl(.x, ~igraph::edge_density(nonzero(.x))))
+fl_trans <- map(graphs_flight_heuristic, ~map_dbl(.x, ~igraph::transitivity(nonzero(.x))))
+fl_diam <- map(graphs_flight_heuristic, ~map_dbl(.x, ~igraph::diameter(nonzero(.x))))
+fe_density <- map(graphs_feeding_heuristic, ~map_dbl(.x, ~igraph::edge_density(nonzero(.x))))
+fe_trans <- map(graphs_feeding_heuristic, ~map_dbl(.x, ~igraph::transitivity(nonzero(.x))))
+fe_diam <- map(graphs_feeding_heuristic, ~map_dbl(.x, ~igraph::diameter(nonzero(.x))))
+ro_density <- map(graphs_roosting_heuristic, ~map_dbl(.x, ~igraph::edge_density(nonzero(.x))))
+ro_trans <- map(graphs_roosting_heuristic, ~map_dbl(.x, ~igraph::transitivity(nonzero(.x))))
+ro_diam <- map(graphs_roosting_heuristic, ~map_dbl(.x, ~igraph::diameter(nonzero(.x))))
+ag_density <- map(graphs_aggregate_heuristic, ~map_dbl(.x, ~igraph::edge_density(nonzero(.x))))
+ag_trans <- map(graphs_aggregate_heuristic, ~map_dbl(.x, ~igraph::transitivity(nonzero(.x))))
+ag_diam <- map(graphs_aggregate_heuristic, ~map_dbl(.x, ~igraph::diameter(nonzero(.x))))
 ```
 
 Let's visualize those over time, just for the sake of it
@@ -74,23 +74,23 @@ Let's visualize those over time, just for the sake of it
 
 getmeasures <- function(dens, trans, diam, tw, sitch){
   out <- pmap(list(dens, trans, diam, tw),
-                    ~data.frame(dens = ..1, 
-                                trans = ..2, 
-                                diam = ..3, 
-                                w = ..4, 
-                                situ = sitch) %>%
-                     mutate(step = 1:n(),
-                            time = step*w))
+              ~data.frame(dens = ..1, 
+                          trans = ..2, 
+                          diam = ..3, 
+                          w = ..4, 
+                          situ = sitch) %>%
+                mutate(step = 1:n(),
+                       time = step*w))
   return(out)
 }
 measures_fl <- getmeasures(fl_density, fl_trans, fl_diam, 
-                           timewindows, "flight")
+                           timewindows_heuristic, "flight")
 measures_fe <- getmeasures(fe_density, fe_trans, fe_diam, 
-                           timewindows, "feeding")
+                           timewindows_heuristic, "feeding")
 measures_ro <- getmeasures(ro_density, ro_trans, ro_diam, 
-                           timewindows, "roosting")
+                           timewindows_heuristic, "roosting")
 measures_ag <- getmeasures(ag_density, ag_trans, ag_diam, 
-                           timewindows, "aggregate")
+                           timewindows_heuristic, "aggregate")
 all <- list(measures_fl, measures_fe, measures_ro, measures_ag)
 all <- map(all, list_rbind)
 
@@ -107,7 +107,7 @@ measures %>%
   geom_point(pch = 1, alpha = 0.2)+
   geom_smooth()+
   scale_color_manual(name = "Situation", values = c("firebrick3", situcolors))
-  theme(legend.position = "none")
+theme(legend.position = "none")
 ```
 
 Now let's plot the CV (sd/mean)
@@ -132,16 +132,55 @@ cvs %>%
   theme(legend.position = "bottom",
         text = element_text(size = 16))
 
-## same thing with time on a log scale:
+```
+
+```{r}
+## Density only, since that's most directly comparable to Caceres et al.
 cvs %>%
-  ggplot(aes(x = log(w_days), y = cv, col = situ))+
-  facet_wrap(~measure, scales = "free_y")+
-  geom_line()+
-  geom_point()+
-  ylab("CV")+
-  xlab("Time window (days) (log-transformed)")+
+  filter(measure == "density") %>%
+  ggplot(aes(x = w_days, y = cv, col = situ))+
+  geom_line(linewidth = 1, alpha = 0.7)+
+  geom_point(size = 2, alpha = 0.7)+
+  ylab("CV (Density)")+
+  xlab("Time window (days)")+
   scale_color_manual(name = "Situation", values = c("firebrick3", situcolors))+
+  theme(legend.position = "bottom",
+        text = element_text(size = 16))+
+  guides(color = guide_legend(override.aes = 
+                                list(linewidth = 2, size = 3, alpha = 1)))
+```
+
+```{r}
+## Look at the time series at various scales
+measures %>%
+  filter(measure == "density", w %in% c(1, 11, 21, 31)) %>%
+  ggplot(aes(x = time, y = value, col = situ))+
+  geom_line(aes(linewidth = situ, alpha = situ))+
+  facet_wrap(~w, scales = "free_y")+
+  scale_color_manual(name = "Situation", values = c("firebrick3", situcolors))+
+  scale_linewidth_manual(values = rep(0.7, 4))+
+  scale_alpha_manual(values = rep(0.7, 4))+
+  guides(linewidth = "none", alpha = "none",
+         color = guide_legend(override.aes = 
+                                list(linewidth = 3, alpha = 1)))+
+  ylab("Density")+
+  xlab("Time")+
   theme(legend.position = "bottom",
         text = element_text(size = 16))
 
+measures %>%
+  filter(measure == "density", w %in% c(1, 11, 21, 31)) %>%
+  ggplot(aes(x = time, y = value, col = situ))+
+  geom_line(aes(linewidth = situ, alpha = situ))+
+  facet_wrap(~w, scales = "free_y")+
+  scale_color_manual(name = "Situation", values = c("firebrick3", situcolors))+
+  scale_linewidth_manual(values = c(0.5, 1, 0.5, 0.5))+
+  scale_alpha_manual(values = c(0.5, 1, 0.5, 0.5))+
+  guides(linewidth = "none", alpha = "none",
+         color = guide_legend(override.aes = 
+                                list(linewidth = 3, alpha = 1)))+
+  ylab("Density")+
+  xlab("Time")+
+  theme(legend.position = "bottom",
+        text = element_text(size = 16))
 ```

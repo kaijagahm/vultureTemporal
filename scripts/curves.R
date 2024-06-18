@@ -36,7 +36,9 @@ curves_seasons %>%
   scale_x_continuous(breaks = 1:9)+
   theme(panel.grid.minor = element_blank(),
         text = element_text( size = 14))+
-  ggtitle("Seasons")
+  ggtitle("Seasons")+
+  guides(color = guide_legend(override.aes = 
+                                list(linewidth = 1, size = 3)))
 
 ## Days
 curves %>% 
@@ -49,7 +51,9 @@ curves %>%
   xlab("Amount of aggregation")+
   ylab("Relative entropy (normalized)")+
   scale_color_manual(name = "Situation", values = c("firebrick3", situcolors))+
-  theme(text = element_text(size = 14))
+  theme(text = element_text(size = 14))+
+  guides(color = guide_legend(override.aes = 
+                                list(linewidth = 1, size = 3)))
 
 ## Hours
 curves_hours %>% 
@@ -61,7 +65,9 @@ curves_hours %>%
   xlab("Amount of aggregation")+
   ylab("Relative entropy (normalized)")+
   scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor))+
-  theme(text = element_text(size = 14))
+  theme(text = element_text(size = 14))+
+  guides(color = guide_legend(override.aes = 
+                                list(linewidth = 1, size = 3)))
 
 # Heat maps ---------------------------------------------------------------
 ## Let's start with seasons so it's more manageable
