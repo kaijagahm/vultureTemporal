@@ -1,4 +1,5 @@
 # Functions for targets pipeline
+library(dplyr)
 
 cc <- list("breedingColor" = "#2FF8CA", "summerColor" = "#CA2FF8", "fallColor" = "#F8CA2F", flightColor = "dodgerblue", roostingColor = "olivedrab4", "feedingColor" = "gold")
 situcolors <- c(cc$feedingColor, cc$flightColor, cc$roostingColor)
@@ -359,3 +360,79 @@ prep <- function(graphs, situation){
   g <- graphs %>% purrr::imap(~.x %>% mutate(period = .y) %>% mutate(across(everything(), as.character))) %>% purrr::list_rbind() %>% mutate(period = as.numeric(period), weight = as.numeric(weight)) %>% mutate(situ = situation)
   return(g)
 }
+
+get_networks_dyads <- function(data){ # ugh this is really sloppy but i'm in a rush so i'm kicking the can down the road. Sorry future self :(
+  tonetworks <- data %>%
+    group_by(situ, period) %>%
+    group_split() %>%
+    purrr::map(., as.data.frame)
+  gs <- purrr::map(tonetworks, ~igraph::graph_from_data_frame(.x, directed = FALSE))
+  return(gs)
+}
+
+get_shuffled_reps_df <- function(graphs, reps){
+  shuffled_reps <- vector(mode = "list", length = reps)
+  for(i in 1:reps){
+    shuffled_graphs <- map(graphs, ~{
+      V(.x)$name <- sample(V(.x)$name)
+      return(.x)
+    })
+    shuffled <- map(shuffled_graphs, 
+                    ~igraph::as_data_frame(.x) %>%
+                      mutate(rep = i)) %>% purrr::list_rbind()
+    shuffled_reps[[i]] <- shuffled
+    cat(".")
+  }
+  shuffled_reps_df <- purrr::list_rbind(shuffled_reps)
+  return(shuffled_reps_df)
+}
+
+correct_dyad_id_order <- function(data){
+  forward <- data %>%
+    mutate(ID1 = from, ID2 = to)
+  backward <- data %>%
+    mutate(ID1 = to, ID2 = from)
+  ordered <- bind_rows(forward, backward) %>%
+    filter(ID1 < ID2) %>%
+    ungroup() %>%
+    select(ID1, ID2, weight, situ, period, rep) %>%
+    distinct() %>%
+    mutate(dyad = paste(ID1, ID2, sep = ", "))
+  return(ordered)
+}
+
+get_lms <- function(data){
+  for_lms <- data %>%
+    ungroup() %>%
+    group_split(dyad, situ)
+  labels <- map(for_lms, ~.x %>% select(ID1, ID2, dyad, situ) %>% distinct())
+
+  lms_summ <- map(for_lms, ~{
+    mod <- lm(weight ~ period, data = .x)
+    summ <- broom::tidy(mod)
+  }, .progress = T)
+  
+  labeled <- map2(lms_summ, labels, ~bind_cols(.y, .x)) %>% purrr::list_rbind()
+  return(labeled)
+}
+
+get_lms_permuted <- function(data, workers){
+  future::plan(future::multisession, workers = workers)
+  for_lms <- data %>%
+    ungroup() %>%
+    group_split(dyad, situ, rep)
+  lms_summ <- furrr::future_map(for_lms, ~{
+    mod <- lm(weight ~ period, data = .x)
+    summ <- broom::tidy(mod)
+  }, .progress = T)
+  
+  lms_summ <- lms_summ %>% purrr::list_rbind(names_to = "n")
+  
+  labels <- data %>% select(ID1, ID2, dyad, situ, rep) %>%
+    distinct() %>% mutate(n = 1:nrow(.))
+  
+  labeled <- left_join(labels, lms_summ, by = "n") %>% select(-n)
+  return(labeled)
+}
+
+

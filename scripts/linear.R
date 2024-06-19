@@ -6,7 +6,6 @@ tar_load(feeding_sris)
 tar_load(flight_sris)
 tar_load(roost_sris)
 tar_load(timewindows)
-tar_load(static)
 
 # Permutations ------------------------------------------------------------
 # In order to figure out the trend, need to permute the node identities separately on each of the networks, and then re-calculate the trends, pulling out the slope and p-value and various other information, and then compare that to the observed slopes.
