@@ -351,3 +351,11 @@ get_reduc_curves_df_seasons <- function(red, type, situ){
     dplyr::mutate(step = 1:nrow(.), type = type, situ = situ)
   return(df)
 }
+
+
+# Dyads -------------------------------------------------------------------
+
+prep <- function(graphs, situation){
+  g <- graphs %>% purrr::imap(~.x %>% mutate(period = .y) %>% mutate(across(everything(), as.character))) %>% purrr::list_rbind() %>% mutate(period = as.numeric(period), weight = as.numeric(weight)) %>% mutate(situ = situation)
+  return(g)
+}

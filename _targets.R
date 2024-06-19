@@ -115,28 +115,28 @@ list(
                                                       nnodes_seasons,
                                                       type = "Categorical")),
   tar_target(red_feeding_cat_seasons, get_reducibility(graphs_feeding_seasons,
-                                                      nlayers_feeding_seasons,
-                                                      nnodes_seasons,
-                                                      type = "Categorical")),
+                                                       nlayers_feeding_seasons,
+                                                       nnodes_seasons,
+                                                       type = "Categorical")),
   tar_target(red_roosting_cat_seasons, get_reducibility(graphs_roosting_seasons,
-                                                      nlayers_roosting_seasons,
-                                                      nnodes_seasons,
-                                                      type = "Categorical")),
-  tar_target(red_aggregate_cat_seasons, get_reducibility(graphs_aggregate_seasons,
-                                                        nlayers_aggregate_seasons,
+                                                        nlayers_roosting_seasons,
                                                         nnodes_seasons,
                                                         type = "Categorical")),
+  tar_target(red_aggregate_cat_seasons, get_reducibility(graphs_aggregate_seasons,
+                                                         nlayers_aggregate_seasons,
+                                                         nnodes_seasons,
+                                                         type = "Categorical")),
   tar_target(curves_seasons, purrr::list_rbind(list(
     get_reduc_curves_df_seasons(red_flight_cat_seasons, "categorical", "flight"),
     get_reduc_curves_df_seasons(red_feeding_cat_seasons, "categorical", "feeding"),
     get_reduc_curves_df_seasons(red_roosting_cat_seasons, "categorical", "roosting"),
     get_reduc_curves_df_seasons(red_aggregate_cat_seasons, "categorical", "aggregate")))),
-
+  
   # DAYS ---------------------------------------------------------------------
   ### select one season to work with (Summer 2023). Including all three social situations.
   tar_target(summer2023data, alldata_prepped[[which(season_names == "2023_summer")]]),
   tar_target(summer2023roosts, roosts[[which(season_names == "2023_summer")]]),
-
+  
   ### Cut data
   tar_target(timewindows, c(1, 5, 10, 25)),
   tar_target(timewindows_heuristic, seq(from = 1, to = 50, by = 5)),
@@ -182,24 +182,24 @@ list(
   tar_target(nlayers_aggregate, map_dbl(tensors_aggregate, length)),
   ### get reducibility curves
   tar_target(red_flight_cat, pmap(list(graphs_flight, nlayers_flight, nnodes),
-                                   ~get_reducibility(..1, ..2, ..3,
-                                                         type = "Categorical"))),
+                                  ~get_reducibility(..1, ..2, ..3,
+                                                    type = "Categorical"))),
   tar_target(red_feeding_cat, pmap(list(graphs_feeding, nlayers_feeding, nnodes),
                                    ~get_reducibility(..1, ..2, ..3,
-                                                          type = "Categorical"))),
+                                                     type = "Categorical"))),
   tar_target(red_roosting_cat, pmap(list(graphs_roosting, nlayers_roosting, nnodes),
                                     ~get_reducibility(..1, ..2, ..3,
-                                                           type = "Categorical"))),
+                                                      type = "Categorical"))),
   tar_target(red_aggregate_cat, pmap(list(graphs_aggregate, nlayers_aggregate, nnodes),
                                      ~get_reducibility(..1, ..2, ..3,
-                                                            type = "Categorical"))),
+                                                       type = "Categorical"))),
   tar_target(curves, purrr::list_rbind(list(
     get_reduc_curves_df(red_flight_cat, timewindows, "categorical", "flight"),
     get_reduc_curves_df(red_feeding_cat, timewindows, "categorical", "feeding"),
     get_reduc_curves_df(red_roosting_cat, timewindows, "categorical", "roosting"),
     get_reduc_curves_df(red_aggregate_cat, timewindows, "categorical", "aggregate")
   ))),
-
+  
   # HOURS -------------------------------------------------------------------
   ### select a 10-day period, let's say July 1-July 10 2023 (not doing roosts for this because it's for hourly data.)
   tar_target(data_10day, summer2023data %>%
@@ -222,7 +222,7 @@ list(
   ### get reducibility curves
   tar_target(red_flight_hours_cat,
              get_reducibility(graphs_flight_hours, nlayers_flight_hours,
-                             nnodes_hours, type = "Categorical")),
+                              nnodes_hours, type = "Categorical")),
   tar_target(red_feeding_hours_cat,
              get_reducibility(graphs_feeding_hours, nlayers_feeding_hours,
                               nnodes_hours, type = "Categorical")),
@@ -234,5 +234,32 @@ list(
              ), ~data.frame(ent = ..1$gQualityFunction,
                             timewindow = "1 hour",
                             type = ..2, situ = ..3) %>%
-               dplyr::mutate(step = 1:nrow(.))) %>% purrr::list_rbind())
+               dplyr::mutate(step = 1:nrow(.))) %>% purrr::list_rbind()),
+  ## Dyads
+  tar_target(fe_5days_fordyads, prep(feeding_sris[[2]], "feeding")),
+  tar_target(fl_5days_fordyads, prep(flight_sris[[2]], "flight")),
+  tar_target(ro_5days_fordyads, prep(roost_sris[[2]], "roosting")),
+  tar_target(all_5days_fordyads, 
+             list_rbind(list(fe_5days_fordyads, fl_5days_fordyads, ro_5days_fordyads)) %>% 
+               mutate(dyad = paste(ID1, ID2, sep = ", ")) %>%
+               group_by(dyad, situ) %>%
+               mutate(n_dyad_situ = n(),
+                      n_dyad_situ_nonzero = sum(weight > 0)) %>%
+               ungroup() %>%
+               group_by(dyad) %>%
+               mutate(n_dyad = n(),
+                      n_dyad_nonzero = sum(weight > 0))),
+  tar_target(sri_dist_fl, pull(fl_5days_fordyads, weight)),
+  tar_target(sri_dist_fe, pull(fe_5days_fordyads, weight)),
+  tar_target(sri_dist_ro, pull(ro_5days_fordyads, weight)),
+  tar_target(static_fl, fl_5days_fordyads %>% 
+               select(ID1, ID2, situ, period) %>% 
+               mutate(weight = sample(sri_dist_fl))),
+  tar_target(static_fe, fe_5days_fordyads %>% 
+               select(ID1, ID2, situ, period) %>% 
+               mutate(weight = sample(sri_dist_fe))),
+  tar_target(static_ro, ro_5days_fordyads %>% 
+               select(ID1, ID2, situ, period) %>% 
+               mutate(weight = sample(sri_dist_ro))),
+  tar_target(static, bind_rows(static_fl, static_fe, static_ro))
 )
