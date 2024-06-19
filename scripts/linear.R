@@ -6,21 +6,28 @@ tar_load(feeding_sris)
 tar_load(flight_sris)
 tar_load(roost_sris)
 tar_load(timewindows)
+tar_load(combined_obs)
+tar_load(combined_static)
 
+annotate <- function(data){
+  out <- data %>%
+    mutate(fifteen = ifelse(nperiods >= 15, T, F),
+           sigslope = ifelse(p.value_obs < 0.05 & term == "period", T, F),
+           sigintercept = ifelse(p.value_obs < 0.05 & term == "(Intercept)", T, F)) %>%
+    group_by(dyad, situ) %>%
+    mutate(prop_obs_greater = sum(estimate_obs > estimate)/n(),
+           prop_obs_less = sum(estimate_obs < estimate)/n()) %>%
+    ungroup() %>%
+    mutate(nonrandom = ifelse(prop_obs_greater <= 0.025 | prop_obs_less <= 0.025, T, F))
+  return(out)
+}
+combined_obs <- annotate(combined_obs)
+combined_static <- annotate(combined_static)
 
-fifteen <- combined %>%
-  filter(nperiods >= 15)
-fifteen_static <- combined_static %>%
-  filter(nperiods >= 15)
 
 #### 1.
-sigslopes_nonrandom <- fifteen %>% # at least 15 periods
-  filter(p.value_obs < 0.05, term == "period") %>% # significant slopes
-  group_by(dyad, situ) %>%
-  mutate(prop_obs_greater = sum(estimate_obs > estimate)/n(),
-         prop_obs_less = sum(estimate_obs < estimate)/n()) %>%
-  ungroup() %>%
-  filter(prop_obs_greater <= 0.025 | prop_obs_less <= 0.025) # slope significantly different from random
+sigslopes_nonrandom <- combined_obs %>% filter(sigslope, nonrandom)
+
 
 sigslopes_nonrandom_static <- fifteen_static %>%
   filter(p.value_obs <= 0.05, term == "period") %>%
@@ -64,3 +71,7 @@ length(unique(friends_static$dyad))
 length(unique(enemies$dyad))
 length(unique(enemies_static$dyad))
 # these are really weird numbers! What gives??
+
+# Visualize some of the significant slopes diff from random ---------------
+
+

@@ -178,3 +178,9 @@ cut_data|function|d5648c0757603a88
 cut_roosts|function|354de256ee961346
 get_aggregate_sris|function|fe6353570a91b361
 get_reducibility|function|ac772854cede236d
+shuffled_reps_df|stem|8da9ac5e641ace46|e52fa34c4db108ba|0eed2a402e282a67|1659950776||t19893.9436962815s|21caa589d1b6d508|137792443|rds|local|vector|||14.438||
+replicates|stem|2a8e1bceb3a755fe|4f479d2fb8c1ccf3|03314f68bf06b1d6|-1347516942||t19893.9444878549s|0fcbb8b76393b7e1|115693043|rds|local|vector|||21.647||
+shuffled_reps_static_df|stem|fe72ef04fad832b4|65870b66816b498b|77fcc6c4f84149c8|-1756510267||t19893.9451611011s|d6807d24030272da|106701153|rds|local|vector|||11.125||
+lms_perm_summ|stem|d54a23865f58f621|dd4611d38cc378ea|d9aa89d1aa85ce83|-2094637476||t19893.968323047s|2447d9e052eaef54|61252963|rds|local|vector|||1991.253|Careful, you are setting up 20 localhost parallel workers with only 8 CPU cores available for this R process per system, which could result in a 250 load. The soft limit is set to 100. Overusing the CPUs has negative impact on the current R process, but also on all other processes of yours and others running on the same machine. See helpparallelly.options, package  parallelly for how to override the soft and hard limits|
+replicates_static|stem|b3cf5111c8b7ac33|a4df1647fc2a873b|06129ac101f88251|1683548372||t19893.9694211092s|9cbb8ad56e7ce242|116413214|rds|local|vector|||46.897||
+combined_obs|stem|98b695f9daabda93|a499d0ef749ba601|d6e804533a73398e|1816608120||t19893.9708823974s|e1d7bc242c40243f|192559384|rds|local|vector|||10.694||
