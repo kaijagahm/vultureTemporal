@@ -265,14 +265,14 @@ list(
                mutate(dyad = paste(ID1, ID2, sep = ", "))),
   tar_target(gs, get_networks_dyads(all_5days_fordyads)),
   tar_target(gs_static, get_networks_dyads(static)),
-  tar_target(shuffled_reps_df, get_shuffled_reps_df(graphs = gs, reps = 100)),
-  tar_target(shuffled_reps_static_df, get_shuffled_reps_df(graphs = gs_static, reps = 100)),
+  tar_target(shuffled_reps_df, get_shuffled_reps_df(graphs = gs, reps = 10)),
+  tar_target(shuffled_reps_static_df, get_shuffled_reps_df(graphs = gs_static, reps = 10)),
   tar_target(replicates, correct_dyad_id_order(shuffled_reps_df)),
   tar_target(replicates_static, correct_dyad_id_order(shuffled_reps_static_df)),
   tar_target(lms_obs_summ, get_lms(all_5days_fordyads)),
   tar_target(lms_obs_summ_static, get_lms(static)),
   tar_target(lms_perm_summ, get_lms_permuted(replicates, workers = 20)),
   tar_target(lms_perm_summ_static, get_lms_permuted(replicates_static, workers = 20)),
-  tar_target(combined_obs, get_combined(all_5days_fordyads, lm_obs_summ, lm_perm_summ)),
-  tar_target(combined_static, get_combined(static, lm_obs_summ_static, lm_perm_summ_static))
+  tar_target(combined_obs, get_combined(all_5days_fordyads, lms_obs_summ, lms_perm_summ)),
+  tar_target(combined_static, get_combined(static, lms_obs_summ_static, lms_perm_summ_static))
 )

@@ -404,7 +404,8 @@ correct_dyad_id_order <- function(data){
 get_lms <- function(data){
   for_lms <- data %>%
     ungroup() %>%
-    group_split(dyad, situ)
+    group_by(dyad, situ) %>%
+    group_split(.keep = T)
   labels <- map(for_lms, ~.x %>% select(ID1, ID2, dyad, situ) %>% distinct())
   
   lms_summ <- map(for_lms, ~{
@@ -420,7 +421,8 @@ get_lms_permuted <- function(data, workers){
   future::plan(future::multisession, workers = workers)
   for_lms <- data %>%
     ungroup() %>%
-    group_split(dyad, situ, rep)
+    group_by(dyad, situ, rep) %>%
+    group_split()
   lms_summ <- furrr::future_map(for_lms, ~{
     mod <- lm(weight ~ period, data = .x)
     summ <- broom::tidy(mod)
@@ -435,17 +437,17 @@ get_lms_permuted <- function(data, workers){
   return(labeled)
 }
 
-get_combined <- function(data, lm_obs_summ, lm_perm_summ){
+get_combined <- function(data, obs, perm){
   all_obs <- data %>%
     group_by(dyad, situ) %>%
     mutate(nperiods = length(unique(period))) %>%
     ungroup() %>%
-    left_join(lms_obs_summ, 
+    left_join(obs, 
               by = c("ID1", "ID2", "dyad", "situ"), 
               relationship = "many-to-many") %>%
     arrange(dyad, situ, period, term)
   
-  combined <-  lms_perm_summ %>%
+  combined <- perm %>%
     left_join(all_obs, by = c("ID1", "ID2", "dyad", "situ", "term"), 
               suffix = c("", "_obs"), relationship = "many-to-many") %>%
     ungroup()

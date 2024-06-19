@@ -14,6 +14,8 @@ binarize|function|6fa1b83d4f81b318|||||||||||||||
 cc|object|5da0f357dc1248bf|||||||||||||||
 collapse|function|e5b26670f7223c0d|||||||||||||||
 cols_to_remove|stem|729036fa2af8509d|76d045ee03f3575d|ef46db3751d8e999|321494488||t19888.9328472222s|20798277a5bbdf65|499|rds|local|vector|||2.06||
+combined_obs|stem|ef82381079fe1ad6|a499d0ef749ba601|b7290a2c018ff40b|1816608120||t19893.8408982935s|57a55825a94d9cc9|19298752|rds|local|vector|||1.732||
+combined_static|stem|4328aea8184154e8|4f945276a63e2ad9|81ab97ddb68cb022|2100081190||t19893.8410381879s|fc564340ca1faf6d|18889121|rds|local|vector|||0.987||
 correct_dyad_id_order|function|9165ca30b944b16b|||||||||||||||
 curves|stem|3009c2d022ab1864|b754f43e569a9048|f275d06151a44361|-2083690060||t19889.2451157407s|7aa11a16b31dc092|6153|rds|local|vector|||0.05||
 curves_hours|stem|a655fabfa051a127|2c1da96c2452e9e7|7124f115de9d002f|-642870298||t19889.2451157407s|3e74ec940d47554d|9844|rds|local|vector|||0.02||
@@ -40,14 +42,15 @@ flight_sris_hours|stem|7fa55bf2ad26669f|bd8c15a376b11305|2033653e517e1334|112594
 flight_sris_seasons|stem|4ec78f7a68fc4876|e9e24c4bd55616d8|02723db20c06e781|1208536542||t19888.9381018519s|9cee31e016e135b5|78875|rds|local|vector|||143.53||
 get_aggregate|function|1aaa4a9564f4ca69|||||||||||||||
 get_aggregate_sris|function|fe6353570a91b361|||||||||||||||
+get_combined|function|c4166e35836c5296|||||||||||||||
 get_data|function|1d76adc13b2bae9c|||||||||||||||
 get_feeding_sris|function|c1f0157458a12cda|||||||||||||||
 get_flight_sris|function|e606413e054a11bb|||||||||||||||
 get_graphs|function|20071b003e72d09f|||||||||||||||
 get_heatmap|function|2769332916f8a9f7|||||||||||||||
 get_layer_tensor|function|63a0eeed467b43a7|||||||||||||||
-get_lms|function|b5253f0485df3d36|||||||||||||||
-get_lms_permuted|function|0ca175982456e0a9|||||||||||||||
+get_lms|function|f6b734535f5b9ef1|||||||||||||||
+get_lms_permuted|function|27c9082ca8e4f19d|||||||||||||||
 get_multiplex|function|a49c4f1bdc4165ad|||||||||||||||
 get_networks_dyads|function|7292cd4d7ccba9d8|||||||||||||||
 get_node_tensor|function|69d95fb842082f15|||||||||||||||
@@ -75,9 +78,10 @@ graphs_roosting_heuristic|stem|08de725491289c31|7e95fa22fd472bf6|d10741acf99dcb9
 graphs_roosting_seasons|stem|f4219f71dec51b8e|5364c1fc7180f1d2|5bc0a7a9fd6750d4|-810916965||t19888.9405092593s|da6de2fd32410df1|74327|rds|local|vector|||0.01||
 gs|stem|f9012b595215f89a|2cab327ae4f59cc6|719cb651177caa8f|-729133798||t19893.7977641485s|c2a2210a477f91b0|1897762|rds|local|vector|||0.291||
 gs_static|stem|a3e9daba7712c1ec|d1afadc9a84fb360|4c827503d5f9a4ac|970136239||t19893.8020722208s|64dd9971e8bf0eca|1208726|rds|local|vector|||0.241||
-lms_obs_summ|stem|44d0aa145b774acb|051e7d52da55c8da|c55ab90e191f69be|-336834399||t19893.8086873485s|35eb23203019ea4d|520327|rds|local|vector|||21.542||
-lms_obs_summ_static|stem|dd6e7fd4b2c1891c|9279c7d7fd2fe85b|5c5e64101bae2740|-1192002961||t19893.8092130051s|d5703ae6daf7a906|577432|rds|local|vector|||21.718||
-lms_perm_summ_labeled|stem||63a12a7d259ca16d|1945a5f3fec54f24|-2102328226||t19893.812874455s||0|rds|local|vector|||0.06||argument workers is missing, with no default
+lms_obs_summ|stem|44d0aa145b774acb|051e7d52da55c8da|6d5277dfae76c0ec|-336834399||t19893.8343334379s|35eb23203019ea4d|520327|rds|local|vector|||21.659||
+lms_obs_summ_static|stem|dd6e7fd4b2c1891c|9279c7d7fd2fe85b|1f98df443f46d58a|-1192002961||t19893.8345862693s|d5703ae6daf7a906|577432|rds|local|vector|||21.55||
+lms_perm_summ|stem|8ea4a595744eb0b9|dd4611d38cc378ea|316e775aa9e8656d|-2094637476||t19893.8390032488s|c58d342604224312|6162433|rds|local|vector|||107.936|Careful, you are setting up 20 localhost parallel workers with only 8 CPU cores available for this R process per system, which could result in a 250 load. The soft limit is set to 100. Overusing the CPUs has negative impact on the current R process, but also on all other processes of yours and others running on the same machine. See helpparallelly.options, package  parallelly for how to override the soft and hard limits|
+lms_perm_summ_static|stem|04a8a13475ef205c|38eda14221e62f08|346343943a54a7b5|-478351665||t19893.8402533061s|8e2e9daf8f2b21a5|6175361|rds|local|vector|||105.161|Careful, you are setting up 20 localhost parallel workers with only 8 CPU cores available for this R process per system, which could result in a 250 load. The soft limit is set to 100. Overusing the CPUs has negative impact on the current R process, but also on all other processes of yours and others running on the same machine. See helpparallelly.options, package  parallelly for how to override the soft and hard limits|
 nlayers_aggregate|stem|e3ec31173c27e187|ff33318baeb7e768|7292109ad3c44257|-1310097506||t19888.971412037s|b2c2d69496a0fbf4|63|rds|local|vector|||0||
 nlayers_aggregate_seasons|stem|ba6a230c78ac588d|3e0d77ad60151004|4f3272dd976bd6e9|-535219343||t19891.7009027778s|ded833868582137a|50|rds|local|vector|||0||
 nlayers_feeding|stem|e3ec31173c27e187|7ba3a1434fca1a2c|c60705206bc7bda9|-645983896||t19888.9690740741s|b2c2d69496a0fbf4|63|rds|local|vector|||0||
@@ -104,8 +108,8 @@ red_flight_cat_seasons|stem|858b836eb14abf04|602dcc1c9250a27f|6cf1978babb30c2e|-
 red_flight_hours_cat|stem|90d66ab6c93bd55c|68745ceb3f5997e8|593c0e5754225a16|-428540197||t19889.0915277778s|d95a08a996078098|7991|rds|local|vector|||10272.35||
 red_roosting_cat|stem|714af1036edf978d|69248b3d13487682|ea2d17fff07969ef|-1919769107||t19888.9726157407s|af96d85dde4d992a|99943|rds|local|vector|||105.03||
 red_roosting_cat_seasons|stem|cb2bc0e9fc3509f0|e5f8848b2fd0ef90|7a45df9071d3df09|-1914872870||t19888.9690509259s|c8da580d4ab439ea|802|rds|local|vector|||0.92||
-replicates|stem|2a8e1bceb3a755fe|4f479d2fb8c1ccf3|03314f68bf06b1d6|-1347516942||t19893.810745139s|0fcbb8b76393b7e1|115693043|rds|local|vector|||19.353||
-replicates_static|stem|b3cf5111c8b7ac33|a4df1647fc2a873b|06129ac101f88251|1683548372||t19893.8117186333s|9cbb8ad56e7ce242|116413214|rds|local|vector|||15.874||
+replicates|stem|801483da78f9c812|4f479d2fb8c1ccf3|e065cb02929a15b0|-1347516942||t19893.8307155939s|4275308745bb233c|11579935|rds|local|vector|||2.028||
+replicates_static|stem|07f58b9d096fd58e|a4df1647fc2a873b|72c5160fdd18c898|1683548372||t19893.8320886196s|04ef506720fcd8a6|11650311|rds|local|vector|||1.972||
 ro_5days_fordyads|stem|3af3638e41d7da64|3d149b64c632dbb2|ddcc322b49d18b6e|916081111||t19893.7887049534s|8ce316fd1b36de44|68160|rds|local|vector|||0.11||
 roost_sris|stem|7052a29049d2dd63|050f081c128f6c19|7bbeeeac8b70a49d|1314397943||t19888.9569212963s|0a32f72600e32b30|381161|rds|local|vector|||496.39||
 roost_sris_heuristic|stem|2355d7acd53b9d8c|9840246f73049182|66f9534e1952cc2f|-521624550||t19891.7985613743s|597881d01fd97139|492645|rds|local|vector|||312.134||
@@ -119,8 +123,8 @@ roosts_file|stem|b1f30c1f66db750c|d0dce3adaae04120|ef46db3751d8e999|1181475402|d
 roosts_seasons|stem|91fc4e8c50981b24|ea4d80765046dd5a|b9b455b2d7198256|735294558||t19888.9348611111s|32a11ae0a16fb3a4|2096821|rds|local|vector|||0||
 roosts_years|stem|c5b781626c23d3b1|1df5d035b001ec8b|ef46db3751d8e999|-1594797744||t19888.9328472222s|183f211934d4a6a2|27926|rds|local|vector|||0||
 season_names|stem|63da22d5129089ac|2b8e63f08682d7fa|2ce87415f2d1bf9c|2004557824||t19888.9348611111s|4bab66ba4bee4440|108|rds|local|vector|||0||
-shuffled_reps_df|stem|8da9ac5e641ace46|e52fa34c4db108ba|0eed2a402e282a67|1659950776||t19893.8009095114s|21caa589d1b6d508|137792443|rds|local|vector|||14.363||
-shuffled_reps_static_df|stem|fe72ef04fad832b4|65870b66816b498b|77fcc6c4f84149c8|-1756510267||t19893.8038081865s|d6807d24030272da|106701153|rds|local|vector|||11.768||
+shuffled_reps_df|stem|2f2186886d9df171|b489bed8efaf8078|0eed2a402e282a67|1659950776||t19893.8306375087s|a0ef0f554a84b549|13794313|rds|local|vector|||2.09||
+shuffled_reps_static_df|stem|3a82bf739cb5931e|c8b8e4077466556f|77fcc6c4f84149c8|-1756510267||t19893.8307835083s|358858844cce09c3|10678900|rds|local|vector|||1.026||
 situcolors|object|e7fb11efe84b4d94|||||||||||||||
 sri_dist_fe|stem|6a0b5bbe45318f2f|17367f4173314327|7fb7daa59725fa7f|370543067||t19893.788713985s|9082fae89318b5ad|41179|rds|local|vector|||0||
 sri_dist_fl|stem|63241954106cf229|662ad767fa28e89b|f8ef1185629e8cd7|-271717464||t19893.7895418969s|7fdc05288f678017|26612|rds|local|vector|||0.004||
@@ -143,33 +147,3 @@ tensors_flight|stem|cafa3437e571da28|b00b3128add2244a|6779ec23756d0aa1|768258265
 tensors_roosting|stem|ae30a8a519192cdb|7dc177fa0ccaeb2e|9ea99a19b8891979|1913577159||t19888.9690509259s|02f7f21cfbb2526b|435806|rds|local|vector|||0.84||
 timewindows|stem|f3c681e853fdde19|4d2cc2ef0ec298a1|ef46db3751d8e999|1028061333||t19888.9328472222s|8a2d295a6f6be5b7|61|rds|local|vector|||0||
 timewindows_heuristic|stem|2516516ed1d3ceb8|e7d868c749618bfd|ef46db3751d8e999|1770582323||t19891.7936257355s|dff9495c51b724c1|77|rds|local|vector|||1.143|RGL unable to open X11 display. rgl.init failed, running with rgl.useNULL  TRUE.|
-collapse|function|e5b26670f7223c0d
-cc|object|5da0f357dc1248bf
-get_multiplex|function|a49c4f1bdc4165ad
-cuttimes|function|00692e5fd5cb3e1e
-get_feeding_sris|function|c1f0157458a12cda
-prepare_data|function|026245e3e2b1d823
-get_layer_tensor|function|63a0eeed467b43a7
-get_aggregate|function|1aaa4a9564f4ca69
-get_reduc_curves_df_seasons|function|be9f85dbb1ae0966
-get_shuffled_reps_df|function|b8227f1eb6cadd38
-get_node_tensor|function|69d95fb842082f15
-prep|function|01b2df46b568e898
-get_lms_permuted|function|0ca175982456e0a9
-get_reduc_curves_df|function|458a80b786a64a79
-cutdates|function|89585defeef0f583
-get_graphs|function|20071b003e72d09f
-binarize|function|6fa1b83d4f81b318
-get_flight_sris|function|e606413e054a11bb
-get_roost_sris|function|756e5e9153ded86f
-get_heatmap|function|2769332916f8a9f7
-correct_dyad_id_order|function|9165ca30b944b16b
-get_networks_dyads|function|7292cd4d7ccba9d8
-read_from_path|function|5b3081fb53f5e373
-GetMultilayerReducibility_KG|function|9214b228ccf409dc
-get_lms|function|b5253f0485df3d36
-situcolors|object|e7fb11efe84b4d94
-cut_data|function|d5648c0757603a88
-cut_roosts|function|354de256ee961346
-get_aggregate_sris|function|fe6353570a91b361
-get_reducibility|function|ac772854cede236d
