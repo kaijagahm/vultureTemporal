@@ -271,7 +271,8 @@ list(
   tar_target(replicates_static, correct_dyad_id_order(shuffled_reps_static_df)),
   tar_target(lms_obs_summ, get_lms(all_5days_fordyads)),
   tar_target(lms_obs_summ_static, get_lms(static)),
-  tar_target(lms_perm_summ_labeled, get_lms_permuted(replicates, workers = 20)),
-  tar_target(lms_perm_summ_labeled_static, get_lms_permuted(replicates_static, workers = 20))
-  
+  tar_target(lms_perm_summ, get_lms_permuted(replicates, workers = 20)),
+  tar_target(lms_perm_summ_static, get_lms_permuted(replicates_static, workers = 20)),
+  tar_target(combined_obs, get_combined(all_5days_fordyads, lm_obs_summ, lm_perm_summ)),
+  tar_target(combined_static, get_combined(static, lm_obs_summ_static, lm_perm_summ_static))
 )

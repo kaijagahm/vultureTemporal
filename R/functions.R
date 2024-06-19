@@ -50,13 +50,13 @@ cut_data <- function(data, timewindows){
     out$int <- cutdates(out$dateOnly, .x)
     return(out)
   })
-
+  
   # Okay, now we have the data classified into intervals, time to split each one into a list.
   # There is an annoying thing here: when you have an sf object and you run group_by() %>% group_split() on it, the resulting sub-objects do not keep their sf status. They turn into regular data frames. Grrrrr! So I had to add a step to turn each of them back into an sf object.
   data_cut <- purrr::map(data_cut, ~.x %>% 
-                    dplyr::group_by(int) %>% 
-                    dplyr::group_split() %>%
-                    purrr::map(., ~sf::st_as_sf(.x, coords = c("location_long", "location_lat"), crs = "WGS84", remove = F)))
+                           dplyr::group_by(int) %>% 
+                           dplyr::group_split() %>%
+                           purrr::map(., ~sf::st_as_sf(.x, coords = c("location_long", "location_lat"), crs = "WGS84", remove = F)))
   return(data_cut)
 }
 
@@ -332,7 +332,7 @@ GetMultilayerReducibility_KG <- function(SupraAdjacencyMatrix, Layers, Nodes, Me
 get_heatmap <- function(red, nlayers){
   layernames <- as.character(1:nlayers)
   mat_toplot <- provideDimnames(as.matrix(red$JSD), sep="", 
-                                           list(layernames, layernames))
+                                list(layernames, layernames))
   heat <- gplots::heatmap.2(mat_toplot, trace = "none", dendrogram = "row")
   return(heat)
 }
@@ -342,8 +342,8 @@ get_reduc_curves_df <- function(red, timewindows, type, situ){
     df <- setNames(as.data.frame(.x$gQualityFunction), "ent") %>%
       dplyr::mutate(timewindow = .y, step = 1:nrow(.), type = type, situ = situ)
   }) %>% purrr::list_rbind() %>%
-  dplyr::mutate(timestep = 1+(step-1)*timewindow) %>%
-  dplyr::mutate(timewindow = factor(as.character(timewindow)))
+    dplyr::mutate(timestep = 1+(step-1)*timewindow) %>%
+    dplyr::mutate(timewindow = factor(as.character(timewindow)))
   return(outdf)
 }
 
@@ -406,7 +406,7 @@ get_lms <- function(data){
     ungroup() %>%
     group_split(dyad, situ)
   labels <- map(for_lms, ~.x %>% select(ID1, ID2, dyad, situ) %>% distinct())
-
+  
   lms_summ <- map(for_lms, ~{
     mod <- lm(weight ~ period, data = .x)
     summ <- broom::tidy(mod)
@@ -435,4 +435,19 @@ get_lms_permuted <- function(data, workers){
   return(labeled)
 }
 
-
+get_combined <- function(data, lm_obs_summ, lm_perm_summ){
+  all_obs <- data %>%
+    group_by(dyad, situ) %>%
+    mutate(nperiods = length(unique(period))) %>%
+    ungroup() %>%
+    left_join(lms_obs_summ, 
+              by = c("ID1", "ID2", "dyad", "situ"), 
+              relationship = "many-to-many") %>%
+    arrange(dyad, situ, period, term)
+  
+  combined <-  lms_perm_summ %>%
+    left_join(all_obs, by = c("ID1", "ID2", "dyad", "situ", "term"), 
+              suffix = c("", "_obs"), relationship = "many-to-many") %>%
+    ungroup()
+  return(combined)
+}
