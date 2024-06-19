@@ -88,7 +88,7 @@ get_prob_assoc <- function(strengths, all, lead_amt = 1){
   return(assocs)
 }
 
-probs <- get_prob_assoc(strengths, periods_all)
+probs <- get_prob_assoc(strengths, periods_all, lead_amt = 1)
 
 # Let's look at some re-association probabilities, restricting it to dyads that interacted in at least 10 different periods.
 
@@ -104,14 +104,11 @@ getlevels <- function(probs, situation, thresh = 10){
   return(levels)
 }
 
-lv_fl <- getlevels(probs, "flight", thresh = 10)
-lv_fe <- getlevels(probs, "feeding", thresh = 10)
-lv_ro <- getlevels(probs, "roosting", thresh = 20)
-
+lv_fl <- getlevels(probs, "flight", thresh = 14)
 plt_fl <- probs %>%
   filter(!is.na(prob_assoc), situ == "flight") %>%
   group_by(dyad) %>%
-  filter(n() >= 10) %>%
+  filter(n() >= 14) %>%
   mutate(dyad = factor(dyad, levels = lv_fl)) %>%
   ggplot(aes(x = dyad, y = prob_assoc, fill = factor(dyad_absolute)))+
   geom_boxplot(outlier.size = 0.5)+
@@ -119,12 +116,15 @@ plt_fl <- probs %>%
   theme(panel.grid.major.x = element_blank(),
         axis.text.x = element_blank(),
         legend.position = "none")+
-  ylab("Prob randomly-selected assocate \nof A is B after 5 days")+
-  xlab("Dyad (co-flight)")+
-  labs(caption = "(includes dyads with >= 10 valid lags)")
+  ylab("P(partner of A is B)")+
+  xlab("Dyad")+
+  labs(caption = "(includes dyads with >= 14 valid lags)")+
+  ggtitle("1-day reassociations (co-flight)")+
+  theme(text =element_text(size = 20))
 plt_fl
 
 # note: because there are some really extreme outliers here, going to remove anything above 0.5 for visualization purposes. This only removes 4 points.
+lv_fe <- getlevels(probs, "feeding", thresh = 10)
 plt_fe <- probs %>%
   filter(!is.na(prob_assoc), situ == "feeding", prob_assoc < 0.5) %>%
   group_by(dyad) %>%
@@ -136,15 +136,18 @@ plt_fe <- probs %>%
   theme(panel.grid.major.x = element_blank(),
         axis.text.x = element_blank(),
         legend.position = "none")+
-  ylab("Prob randomly-selected assocate \nof A is B after 5 days")+
-  xlab("Dyad (co-feeding)")+
-  labs(caption = "(includes dyads with >= 10 valid lags)")
+  ylab("P(partner of A is B)")+
+  xlab("Dyad")+
+  labs(caption = "(includes dyads with >= 10 valid lags)")+
+  ggtitle("1-day reassociations (co-feeding)")+
+  theme(text = element_text(size = 20))
 plt_fe
 
+lv_ro <- getlevels(probs, "roosting", thresh = 21)
 plt_ro <- probs %>%
   filter(!is.na(prob_assoc), situ == "roosting") %>%
   group_by(dyad) %>%
-  filter(n() >= 20) %>%
+  filter(n() >= 21) %>%
   mutate(dyad = factor(dyad, levels = lv_ro)) %>%
   ggplot(aes(x = dyad, y = prob_assoc, fill = factor(dyad_absolute)))+
   geom_boxplot(outlier.size = 0.5)+
@@ -154,7 +157,7 @@ plt_ro <- probs %>%
         legend.position = "none")+
   ylab("Prob randomly-selected assocate \nof A is B after 5 days")+
   xlab("Dyad (co-roosting)")+
-  labs(caption = "(includes dyads with >= 20 valid lags)")
+  labs(caption = "(includes dyads with >= 21 valid lags)")
 plt_ro
 
 # In order to look at this over the entire population of dyads, we're going to need a mean and sd...
@@ -180,7 +183,7 @@ probs <- get_prob_assoc(strengths, periods_all)
 lar_probs <- map(lags, ~{
   probs <- get_prob_assoc(strengths, periods_all, lead_amt = .x)
   return(probs)
-}) %>% purrr::list_rbind(names_to = "lag")
+}, .progress = T) %>% purrr::list_rbind(names_to = "lag")
 
 lars <- lar_probs %>%
   filter(!is.na(lead_value), !is.nan(prob_assoc), !is.na(prob_assoc)) %>%
