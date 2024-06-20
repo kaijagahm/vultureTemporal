@@ -3,6 +3,7 @@
 # (asnipe is designed to work with group-by-individual matrices)
 library(targets)
 library(tidyverse)
+library(viridis)
 
 # One definition of LARs (note: not LRAs) is "the probability that two individuals re-associate a given number of days from their first observed instance of association" (Sunga et al. 2024)
 # Another definition: "Standardized lagged association rates (SLAR) were determined for the entire study period to assess the stability of these relationships. The SLAR g'(t) of a dyad consisting of sharks a and b is an estimate of the average probability that, after a given time lag (t), a randomly selected associate of a will be b, with false absences accounted for according to Whitehead (2008a) and standard errors estimated using jackknifing (Whitehead, 2009)." (Armansin et al. 2016)
@@ -215,16 +216,23 @@ lars_n10_nonzero <- lars_n10 %>%
 
 # attempting to plot the LARs
 lars_n10 %>%
-  ggplot(aes(x = factor(lag), y = mn))+
+  filter(!(situ == "roosting" & mn > 0.5)) %>%
+  ggplot(aes(x = factor(lag), y = mn, fill = lag))+
   geom_boxplot(outlier.size = 0.1)+ 
   facet_wrap(~situ, scales = "free")+
-  theme_classic()
-
-lars_n10 %>%
-  ggplot(aes(x = factor(lag), y = log(mn)))+
-  geom_boxplot(outlier.size = 0.1)+ 
-  facet_wrap(~situ, scales = "free")+
-  theme_classic()
+  theme_classic()+
+  scale_fill_viridis()+
+  geom_line(data = lars_n10 %>% 
+              group_by(lag, situ) %>%
+              summarize(stat = median(mn, na.rm = T)),
+            aes(x = lag, y = stat), col = "firebrick3", 
+            linewidth = 0.7)+
+  labs(caption = "Includes dyads with >= 10 valid lags.\nRemoved one high outlier co-roosting dyad.")+
+  ylab("P(partner of A is B),\ndyad means")+
+  xlab("Lag (days)")+
+  theme(legend.position = "none",
+        text = element_text(size = 20),
+        plot.subtitle = element_text(size = 16))
 
 # I can't tell if these results are real (i.e. that there just aren't that many differences in reassociation probability over this timescale at all) or if there's something wrong with how I'm calculating this. Really would need to test the method on a simulation to confirm that it's working as intended, but I don't think I have time to do that.
 

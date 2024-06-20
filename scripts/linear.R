@@ -9,6 +9,11 @@ tar_load(timewindows)
 tar_load(combined_obs)
 tar_load(combined_static)
 
+fifteen <- combined_obs %>%
+  filter(nperiods >= 15)
+fifteen_static <- combined_static %>%
+  filter(nperiods >= 15)
+
 annotate <- function(data){
   out <- data %>%
     mutate(fifteen = ifelse(nperiods >= 15, T, F),
