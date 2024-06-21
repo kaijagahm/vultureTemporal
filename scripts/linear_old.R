@@ -398,3 +398,31 @@ full <- fifteen %>%
               select(-c(ID1, ID2)) %>%
               rename("ID1" = "id1",
                      "ID2" = "id2"))
+stats <- full %>% select(ID1, ID2, dyad, situ, term, estimate_obs, std.error_obs, statistic_obs, p.value_obs, pog, pol, nonrandom) %>% distinct() %>%
+  filter(term == "period")
+stats_again <- stats %>%
+  mutate(updown = ifelse(estimate_obs < 0, "down", "up")) %>%
+  group_by(ID1, situ) %>%
+  summarize(np = length(unique(ID2)),
+            np_up = length(unique(ID2[updown == "up"])),
+            np_down = length(unique(ID2[updown == "down"])),
+            np_sigslope = length(unique(ID2[p.value_obs < 0.05])),
+            np_sigslope_up = length(unique(ID2[p.value_obs < 0.05 &
+                                                 updown == "up"])),
+            np_sigslope_down = length(unique(ID2[p.value_obs < 0.05 &
+                                                   updown == "down"])),
+            np_nonrandom = length(unique(ID2[nonrandom])),
+            np_nonrandom_up = length(unique(ID2[nonrandom & 
+                                                  updown == "up"])),
+            np_nonrandom_up = length(unique(ID2[nonrandom &
+                                                  updown == "down"])),
+            np_sigslope_nonrandom = length(unique(ID2[nonrandom & p.value_obs < 0])),
+            np_sigslope_nonrandom_up = length(unique(ID2[nonrandom & p.value_obs < 0 & updown == "up"])),
+            np_sigslope_nonrandom_down = length(unique(ID2[nonrandom & p.value_obs < 0 & updown == "down"])))
+
+stats_again %>%
+  ggplot(aes(x = np_sigslope_nonrandom, fill = situ))+
+  geom_histogram()+
+  facet_wrap(~situ, scales = "free")+
+  scale_fill_manual(values = situcolors)+
+  theme(legend.position = "bottom")
