@@ -3,7 +3,6 @@ library(tidyverse)
 library(targets)
 library(tidygraph)
 library(ggraph)
-library(magick)
 library(gifski)
 library(sf)
 
@@ -118,5 +117,5 @@ names <- paste0("fig/abs2024graphs/gifs/", c("flight", "feeding", "roosting"), "
 dirs_days <- paste0("fig/abs2024graphs/days/", c("flight", "feeding", "roosting", "aggregate"), "/")
 names_days <- paste0("fig/abs2024graphs/gifs/", c("flight", "feeding", "roosting", "aggregate"), "_days.gif")
 
-map2(dirs, names, ~savegif(dir = here::here(.x), name = .y, spf = 0.2))
+map2(dirs, names, ~savegif(dir = here::here(.x), name = .y, spf = 0.5))
 map2(dirs_days, names_days, ~savegif(dir = here::here(.x), name = .y, spf = 0.1))
