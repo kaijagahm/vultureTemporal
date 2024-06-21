@@ -2,11 +2,13 @@ library(tidyverse)
 library(targets)
 library(igraph)
 library(here)
+source(here("R/functions.R"))
 
 tar_load(feeding_sris)
 tar_load(flight_sris)
 tar_load(roost_sris)
 tar_load(timewindows)
+
 
 # # Data prep ------------------------------------------------------------------
 # # Prepare the data for 5-day windows.
@@ -302,31 +304,84 @@ length(unique(enemies_static$dyad))
 
 # Let's quantify some example trends ------------------------------------
 minimal <- minimal %>%
-  group_by(situ) %>%
-  mutate(weight_rel = weight/max(weight))
+  group_by(situ)
 ## choose a random dyad/situ from sigslopes_nonrandom
-set.seed(123)
-info <- sigslopes_nonrandom %>%
-  sample_n(1) %>%
-  select(ID1, ID2, situ)
+plotrandomdyad <- function(seed){
+  set.seed(seed)
+  info <- sigslopes_nonrandom %>%
+    sample_n(1) %>%
+    select(ID1, ID2, situ)
+  
+  ## any other significant slopes for this one?
+  allforpair_info <- info %>%
+    select(ID1, ID2) %>%
+    left_join(sigslopes_nonrandom) %>%
+    select(ID1, ID2, situ) %>%
+    distinct()
+  dim(test)
+  head(test)
+  
+  toplot <- allforpair_info %>%
+    select(ID1, ID2) %>%
+    left_join(minimal) %>%
+    mutate(sig = case_when(situ %in% allforpair_info$situ ~ T, 
+                           .default = F)) 
+  p <- toplot %>%
+    ggplot(aes(x = period, y = weight, col = situ, linetype = sig))+
+    geom_point(alpha = 0.7, size = 2)+
+    geom_smooth(method = "lm", alpha = 0.15, linewidth = 1.5)+
+    scale_linetype_manual(values = c(2, 1))+
+    theme_classic()+
+    scale_color_manual(name = "Situation", values = situcolors)+
+    guides(linetype = "none")+
+    ylab("Edge weight (SRI)")+
+    xlab("Period")+
+    ggtitle(paste0("Dyad: ", toplot$dyad[1]))+
+    theme(text = element_text(size = 20))
+  return(p)
+}
+plotrandomdyad(12)
+plotrandomdyad(1234)
 
-## any other significant slopes for this one?
-allforpair_info <- info %>%
-  select(ID1, ID2) %>%
-  left_join(sigslopes_nonrandom) %>%
-  select(ID1, ID2, situ) %>%
-  distinct()
-dim(test)
-head(test)
+plotrandomdyad_againstrandom <- function(seed){
+  set.seed(seed)
+  info <- sigslopes_nonrandom %>%
+    sample_n(1) %>%
+    select(ID1, ID2, situ)
+  
+  ## any other significant slopes for this one?
+  allforpair_info <- info %>%
+    select(ID1, ID2) %>%
+    left_join(sigslopes_nonrandom) %>%
+    select(ID1, ID2, situ) %>%
+    distinct()
+  dim(test)
+  head(test)
+  
+  toplot <- allforpair_info %>%
+    left_join(minimal) %>%
+    mutate(sig = case_when(situ %in% allforpair_info$situ ~ T, 
+                           .default = F)) 
+  randomizations <- allforpair_info %>%
+    left_join(replicates)
+  
+  situs <- c("feeding", "flight", "roosting")
+  cols_touse <- situcolors[which(situs == sort(allforpair_info$situ))]
+  p <- toplot %>%
+    ggplot(aes(x = period, y = weight, col = situ))+
+    geom_smooth(data = randomizations,
+                aes(x = period, y = weight, group = interaction(situ, rep)),
+                method = "lm", se = F, col = "gray", linewidth = 0.1)+
+    geom_point(alpha = 1, size = 2)+
+    geom_smooth(method = "lm", alpha = 0.15, linewidth = 1.5)+
+    theme_classic()+
+    scale_color_manual(name = "Situation", values = cols_touse)+
+    ylab("Edge weight (SRI)")+
+    xlab("Period")+
+    ggtitle(paste0("Dyad: ", toplot$dyad[1]))+
+    theme(text = element_text(size = 20))
+  return(p)
+}
 
-toplot <- allforpair_info %>%
-  select(ID1, ID2) %>%
-  left_join(minimal) %>%
-  mutate(sig = case_when(situ %in% allforpair_info$situ ~ T, 
-                         .default = F)) 
-toplot %>%
-  ggplot(aes(x = period, y = weight_rel, col = situ, linetype = sig))+
-  geom_point()+
-  geom_smooth(method = "lm")+
-  scale_linetype_manual(values = c(5, 1))+
-  theme_classic()
+plotrandomdyad_againstrandom(12)
+plotrandomdyad_againstrandom(1234)
