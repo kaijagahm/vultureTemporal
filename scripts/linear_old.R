@@ -244,26 +244,26 @@ combined_static <- lms_perm_summ_labeled_static %>%
 ### 2. non-significant slopes (i.e. flat lines) whose intercepts are significantly different from random (at least 15 periods of data)
 
 fifteen <- combined %>%
-  filter(nperiods >= 15)
+  filter(nperiods >= 15) %>%
+  group_by(dyad, situ, term) %>%
+  mutate(pog = sum(estimate_obs > estimate)/n(),
+         pol = sum(estimate_obs < estimate)/n()) %>%
+  ungroup() %>%
+  mutate(nonrandom = case_when(pog <= 0.025 | pol <= 0.025 ~ T, .default = F))
 fifteen_static <- combined_static %>%
-  filter(nperiods >= 15)
+  filter(nperiods >= 15) %>%
+  group_by(dyad, situ, term) %>%
+  mutate(pog = sum(estimate_obs > estimate)/n(),
+         pol = sum(estimate_obs < estimate)/n()) %>%
+  ungroup() %>%
+  mutate(nonrandom = case_when(pog <= 0.025 | pol <= 0.025 ~ T, .default = F))
 
 #### 1.
-sigslopes_nonrandom <- fifteen %>% # at least 15 periods
-  filter(p.value_obs < 0.05, term == "period") %>% # significant slopes
-  group_by(dyad, situ) %>%
-  mutate(prop_obs_greater = sum(estimate_obs > estimate)/n(),
-         prop_obs_less = sum(estimate_obs < estimate)/n()) %>%
-  ungroup() %>%
-  filter(prop_obs_greater <= 0.025 | prop_obs_less <= 0.025) # slope significantly different from random
+sigslopes_nonrandom <- fifteen %>% 
+  filter(term == "period", nonrandom, p.value_obs < 0.05)
 
-sigslopes_nonrandom_static <- fifteen_static %>%
-  filter(p.value_obs <= 0.05, term == "period") %>%
-  group_by(dyad, situ) %>%
-  mutate(prop_obs_greater = sum(estimate_obs > estimate)/n(),
-         prop_obs_less = sum(estimate_obs < estimate)/n()) %>%
-  ungroup() %>%
-  filter(prop_obs_greater <= 0.025 | prop_obs_less <= 0.025)
+sigslopes_nonrandom_static <- fifteen_static %>% 
+  filter(term == "period", nonrandom, p.value_obs < 0.05)
 
 #### 2.
 friendsenemies <- fifteen %>% # at least 15 periods
@@ -300,6 +300,33 @@ length(unique(enemies$dyad))
 length(unique(enemies_static$dyad))
 # these are really weird numbers! What gives??
 
-# Let's quantify some example trajectories ------------------------------------
+# Let's quantify some example trends ------------------------------------
+minimal <- minimal %>%
+  group_by(situ) %>%
+  mutate(weight_rel = weight/max(weight))
+## choose a random dyad/situ from sigslopes_nonrandom
+set.seed(123)
+info <- sigslopes_nonrandom %>%
+  sample_n(1) %>%
+  select(ID1, ID2, situ)
 
+## any other significant slopes for this one?
+allforpair_info <- info %>%
+  select(ID1, ID2) %>%
+  left_join(sigslopes_nonrandom) %>%
+  select(ID1, ID2, situ) %>%
+  distinct()
+dim(test)
+head(test)
 
+toplot <- allforpair_info %>%
+  select(ID1, ID2) %>%
+  left_join(minimal) %>%
+  mutate(sig = case_when(situ %in% allforpair_info$situ ~ T, 
+                         .default = F)) 
+toplot %>%
+  ggplot(aes(x = period, y = weight_rel, col = situ, linetype = sig))+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  scale_linetype_manual(values = c(5, 1))+
+  theme_classic()
