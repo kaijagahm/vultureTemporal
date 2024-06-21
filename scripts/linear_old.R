@@ -1,171 +1,191 @@
 library(tidyverse)
 library(targets)
 library(igraph)
+library(here)
 
 tar_load(feeding_sris)
 tar_load(flight_sris)
 tar_load(roost_sris)
 tar_load(timewindows)
 
-# Data prep ------------------------------------------------------------------
-# Prepare the data for 5-day windows.
-prep <- function(graphs, situation){
-  g <- graphs %>% purrr::imap(~.x %>% mutate(period = .y) %>% mutate(across(everything(), as.character))) %>% purrr::list_rbind() %>% mutate(period = as.numeric(period), weight = as.numeric(weight)) %>% mutate(situ = situation)
-  return(g)
-}
-fe <- prep(feeding_sris[[2]], "feeding")
-fl <- prep(flight_sris[[2]], "flight")
-ro <- prep(roost_sris[[2]], "roosting")
+# # Data prep ------------------------------------------------------------------
+# # Prepare the data for 5-day windows.
+# prep <- function(graphs, situation){
+#   g <- graphs %>% purrr::imap(~.x %>% mutate(period = .y) %>% mutate(across(everything(), as.character))) %>% purrr::list_rbind() %>% mutate(period = as.numeric(period), weight = as.numeric(weight)) %>% mutate(situ = situation)
+#   return(g)
+# }
+# fe <- prep(feeding_sris[[2]], "feeding")
+# fl <- prep(flight_sris[[2]], "flight")
+# ro <- prep(roost_sris[[2]], "roosting")
+# 
+# all <- list_rbind(list(fe, fl, ro)) %>% mutate(dyad = paste(ID1, ID2, sep = ", "))
+# all(all$ID1 < all$ID2) # should be no repeat dyads or self dyads
+# length(unique(all$dyad)) # 
+# dyads <- unique(all$dyad) #3655 dyads still
+# 
+# minimal <- all %>%
+#   ungroup() %>%
+#   select(ID1, ID2, weight, situ, period)
+# 
+# # Create stationary networks ----------------------------------------------
+# ## Will use this to determine how many significant slopes we would expect to get just by chance
+# ### First, get the distributions we'll use to generate the networks
+# sri_dist_fl <- minimal %>% filter(situ == "flight") %>% pull(weight)
+# sri_dist_fe <- minimal %>% filter(situ == "feeding") %>% pull(weight)
+# sri_dist_ro <- minimal %>% filter(situ == "roosting") %>% pull(weight)
+# static_fl <- minimal %>% filter(situ == "flight") %>% select(ID1, ID2, situ, period) %>% mutate(weight = sample(sri_dist_fl))
+# static_fe <- minimal %>% filter(situ == "feeding") %>% select(ID1, ID2, situ, period) %>% mutate(weight = sample(sri_dist_fe))
+# static_ro <- minimal %>% filter(situ == "roosting") %>% select(ID1, ID2, situ, period) %>% mutate(weight = sample(sri_dist_ro))
+# 
+# static <- bind_rows(static_fl, static_fe, static_ro)
+# 
+# # Permutations ------------------------------------------------------------
+# # In order to figure out the trend, need to permute the node identities separately on each of the networks, and then re-calculate the trends, pulling out the slope and p-value and various other information, and then compare that to the observed slopes.
+# 
+# tonetworks <- minimal %>%
+#   group_by(situ, period) %>%
+#   group_split() %>% map(., as.data.frame)
+# gs <- map(tonetworks, ~igraph::graph_from_data_frame(.x, directed = FALSE))
+# 
+# tonetworks_static <- static %>%
+#   group_by(situ, period) %>%
+#   group_split() %>% map(., as.data.frame)
+# gs_static <- map(tonetworks_static, ~igraph::graph_from_data_frame(.x, directed = FALSE))
+# 
+# reps <- 100
+# shuffled_reps <- vector(mode = "list", length = reps)
+# shuffled_reps_static <- vector(mode = "list", length = reps)
+# for(i in 1:reps){
+#   shuffled_graphs <- map(gs, ~{
+#     V(.x)$name <- sample(V(.x)$name)
+#     return(.x)
+#   })
+#   shuffled_graphs_static <- map(gs_static, ~{
+#     V(.x)$name <- sample(V(.x)$name)
+#     return(.x)
+#   })
+#   shuffled <- map(shuffled_graphs, 
+#                   ~igraph::as_data_frame(.x) %>%
+#                     mutate(rep = i)) %>% purrr::list_rbind()
+#   shuffled_static <- map(shuffled_graphs_static,
+#                          ~igraph::as_data_frame(.x) %>%
+#                            mutate(rep = i)) %>% purrr::list_rbind()
+#   shuffled_reps[[i]] <- shuffled
+#   shuffled_reps_static[[i]] <- shuffled_static
+#   cat(".")
+# }
+# 
+# shuffled_reps_df <- purrr::list_rbind(shuffled_reps)
+# shuffled_reps_static_df <- purrr::list_rbind(shuffled_reps_static)
+# # Because of the shuffling, the dyads may now be in the wrong order. Let's get ID1 and ID2 to be correct (ID1 < ID2).
+# forward <- shuffled_reps_df %>%
+#   mutate(ID1 = from, ID2 = to)
+# backward <- shuffled_reps_df %>%
+#   mutate(ID1 = to, ID2 = from)
+# ordered <- bind_rows(forward, backward) %>%
+#   filter(ID1 < ID2)
+# rm(forward, backward)
+# 
+# forward <- shuffled_reps_static_df %>%
+#   mutate(ID1 = from, ID2 = to)
+# backward <- shuffled_reps_static_df %>%
+#   mutate(ID1 = to, ID2 = from)
+# ordered_static <- bind_rows(forward, backward) %>%
+#   filter(ID1 < ID2)
+# rm(forward, backward)
+# 
+# # Filter out any duplicates or self edges
+# replicates <- ordered %>%
+#   ungroup() %>%
+#   select(ID1, ID2, weight, situ, period, rep) %>%
+#   distinct() %>%
+#   mutate(dyad = paste(ID1, ID2, sep = ", "))
+# replicates_static <- ordered_static %>%
+#   ungroup() %>%
+#   select(ID1, ID2, weight, situ, period, rep) %>%
+#   distinct() %>%
+#   mutate(dyad = paste(ID1, ID2, sep = ", "))
+# minimal <- minimal %>%
+#   mutate(dyad = paste(ID1, ID2, sep = ", "))
+# static <- static %>%
+#   mutate(dyad = paste(ID1, ID2, sep = ", "))
+#
+# save(replicates, file = here("data/replicates.Rda"))
+# save(replicates_static, file = here("data/replicates_static.Rda"))
+# save(minimal, file = here("data/minimal.Rda"))
+# save(static, file = here("data/static.Rda"))
 
-all <- list_rbind(list(fe, fl, ro)) %>% mutate(dyad = paste(ID1, ID2, sep = ", "))
-all(all$ID1 < all$ID2) # should be no repeat dyads or self dyads
-length(unique(all$dyad)) # 
-dyads <- unique(all$dyad) #3655 dyads still
+load(here("data/replicates.Rda"))
+load(here("data/replicates_static.Rda"))
+load(here("data/minimal.Rda"))
+load(here("data/static.Rda"))
 
-# Create stationary networks ----------------------------------------------
-## Will use this to determine how many significant slopes we would expect to get just by chance
-### First, get the distributions we'll use to generate the networks
-sri_dist_fl <- minimal %>% filter(situ == "flight") %>% pull(weight)
-sri_dist_fe <- minimal %>% filter(situ == "feeding") %>% pull(weight)
-sri_dist_ro <- minimal %>% filter(situ == "roosting") %>% pull(weight)
-static_fl <- minimal %>% filter(situ == "flight") %>% select(ID1, ID2, situ, period) %>% mutate(weight = sample(sri_dist_fl))
-static_fe <- minimal %>% filter(situ == "feeding") %>% select(ID1, ID2, situ, period) %>% mutate(weight = sample(sri_dist_fe))
-static_ro <- minimal %>% filter(situ == "roosting") %>% select(ID1, ID2, situ, period) %>% mutate(weight = sample(sri_dist_ro))
+# all(minimal$dyad %in% replicates$dyad)
+# all(static$dyad %in% replicates_static$dyad)
+# all(replicates$dyad %in% minimal$dyad)
+# all(replicates_static$dyad %in% static$dyad)
+# length(unique(replicates$dyad))
+# length(unique(replicates_static$dyad))
+# length(unique(minimal$dyad))
+# length(unique(static$dyad))
+# 
+# ## Now we're set up to run regressions
+# # Calculate linear models for observed data
+# obs_for_lms <- minimal %>%
+#   group_split(dyad, situ)
+# obs_for_lms_static <- static %>%
+#   group_split(dyad, situ)
+# 
+# lms_obs_summ <- map(obs_for_lms, ~{
+#   mod <- lm(weight ~ period, data = .x)
+#   summ <- broom::tidy(mod)
+# }, .progress = T)
+# 
+# lms_obs_summ_static <- map(obs_for_lms_static, ~{
+#   mod <- lm(weight ~ period, data = .x)
+#   summ <- broom::tidy(mod)
+# }, .progress = T)
+# 
+# obs_labels <- map(obs_for_lms, ~.x %>% select(ID1, ID2, dyad, situ) %>% distinct())
+# obs_labels_static <- map(obs_for_lms_static, ~.x %>% select(ID1, ID2, dyad, situ) %>% distinct())
+# 
+# lms_obs_summ_labeled <- map2(lms_obs_summ, obs_labels, ~bind_cols(.y, .x)) %>% purrr::list_rbind()
+# lms_obs_summ_labeled_static <- map2(lms_obs_summ_static, obs_labels_static, ~bind_cols(.y, .x)) %>% purrr::list_rbind()
 
-static <- bind_rows(static_fl, static_fe, static_ro)
+# save(lms_obs_summ_labeled, file = here("data/lms_obs_summ_labeled.Rda"))
+# save(lms_obs_summ_labeled_static, file = here("data/lms_obs_summ_labeled_static.Rda"))
 
-# Permutations ------------------------------------------------------------
-# In order to figure out the trend, need to permute the node identities separately on each of the networks, and then re-calculate the trends, pulling out the slope and p-value and various other information, and then compare that to the observed slopes.
+load(here("data/lms_obs_summ_labeled.Rda"))
+load(here("data/lms_obs_summ_labeled_static.Rda"))
 
-minimal <- all %>%
-  ungroup() %>%
-  select(ID1, ID2, weight, situ, period)
+# # Calculate linear models for permuted data
+# future::plan(future::multisession, workers = 6)
+# perm_for_lms <- replicates %>%
+#   group_split(dyad, situ, rep)
+# perm_for_lms_static <- replicates_static %>%
+#   group_split(dyad, situ, rep)
+# lms_perm_summ <- furrr::future_map(perm_for_lms, ~{
+#   mod <- lm(weight ~ period, data = .x)
+#   summ <- broom::tidy(mod)
+# }, .progress = T)
+# lms_perm_summ_static <- furrr::future_map(perm_for_lms_static, ~{
+#   mod <- lm(weight ~ period, data = .x)
+#   summ <- broom::tidy(mod)
+# }, .progress = T)
+# 
+# perm_labels <- replicates %>% select(ID1, ID2, dyad, situ, rep) %>%
+#   distinct() %>% mutate(n = 1:nrow(.))
+# perm_labels_static <- replicates_static %>% select(ID1, ID2, dyad, situ, rep) %>%
+#   distinct() %>% mutate(n = 1:nrow(.))
+# 
+# lms_perm_summ <- lms_perm_summ %>% purrr::list_rbind(names_to = "n")
+# lms_perm_summ_static <- lms_perm_summ_static %>% purrr::list_rbind(names_to = "n")
+# 
+# lms_perm_summ_labeled <- left_join(perm_labels, lms_perm_summ, by = "n") %>% select(-n)
+# lms_perm_summ_labeled_static <- left_join(perm_labels_static, lms_perm_summ_static, by = "n") %>% select(-n)
 
-tonetworks <- minimal %>%
-  group_by(situ, period) %>%
-  group_split() %>% map(., as.data.frame)
-gs <- map(tonetworks, ~igraph::graph_from_data_frame(.x, directed = FALSE))
-
-tonetworks_static <- static %>%
-  group_by(situ, period) %>%
-  group_split() %>% map(., as.data.frame)
-gs_static <- map(tonetworks_static, ~igraph::graph_from_data_frame(.x, directed = FALSE))
-
-reps <- 100
-shuffled_reps <- vector(mode = "list", length = reps)
-shuffled_reps_static <- vector(mode = "list", length = reps)
-for(i in 1:reps){
-  shuffled_graphs <- map(gs, ~{
-    V(.x)$name <- sample(V(.x)$name)
-    return(.x)
-  })
-  shuffled_graphs_static <- map(gs_static, ~{
-    V(.x)$name <- sample(V(.x)$name)
-    return(.x)
-  })
-  shuffled <- map(shuffled_graphs, 
-                  ~igraph::as_data_frame(.x) %>%
-                    mutate(rep = i)) %>% purrr::list_rbind()
-  shuffled_static <- map(shuffled_graphs_static,
-                         ~igraph::as_data_frame(.x) %>%
-                           mutate(rep = i)) %>% purrr::list_rbind()
-  shuffled_reps[[i]] <- shuffled
-  shuffled_reps_static[[i]] <- shuffled_static
-  cat(".")
-}
-
-shuffled_reps_df <- purrr::list_rbind(shuffled_reps)
-shuffled_reps_static_df <- purrr::list_rbind(shuffled_reps_static)
-# Because of the shuffling, the dyads may now be in the wrong order. Let's get ID1 and ID2 to be correct (ID1 < ID2).
-forward <- shuffled_reps_df %>%
-  mutate(ID1 = from, ID2 = to)
-backward <- shuffled_reps_df %>%
-  mutate(ID1 = to, ID2 = from)
-ordered <- bind_rows(forward, backward) %>%
-  filter(ID1 < ID2)
-rm(forward, backward)
-
-forward <- shuffled_reps_static_df %>%
-  mutate(ID1 = from, ID2 = to)
-backward <- shuffled_reps_static_df %>%
-  mutate(ID1 = to, ID2 = from)
-ordered_static <- bind_rows(forward, backward) %>%
-  filter(ID1 < ID2)
-rm(forward, backward)
-
-# Filter out any duplicates or self edges
-replicates <- ordered %>%
-  ungroup() %>%
-  select(ID1, ID2, weight, situ, period, rep) %>%
-  distinct() %>%
-  mutate(dyad = paste(ID1, ID2, sep = ", "))
-replicates_static <- ordered_static %>%
-  ungroup() %>%
-  select(ID1, ID2, weight, situ, period, rep) %>%
-  distinct() %>%
-  mutate(dyad = paste(ID1, ID2, sep = ", "))
-minimal <- minimal %>%
-  mutate(dyad = paste(ID1, ID2, sep = ", "))
-static <- static %>%
-  mutate(dyad = paste(ID1, ID2, sep = ", "))
-
-all(minimal$dyad %in% replicates$dyad)
-all(static$dyad %in% replicates_static$dyad)
-all(replicates$dyad %in% minimal$dyad)
-all(replicates_static$dyad %in% static$dyad)
-length(unique(replicates$dyad))
-length(unique(replicates_static$dyad))
-length(unique(minimal$dyad))
-length(unique(static$dyad))
-
-## Now we're set up to run regressions
-# Calculate linear models for observed data
-obs_for_lms <- minimal %>%
-  group_split(dyad, situ)
-obs_for_lms_static <- static %>%
-  group_split(dyad, situ)
-
-lms_obs_summ <- map(obs_for_lms, ~{
-  mod <- lm(weight ~ period, data = .x)
-  summ <- broom::tidy(mod)
-}, .progress = T)
-
-lms_obs_summ_static <- map(obs_for_lms_static, ~{
-  mod <- lm(weight ~ period, data = .x)
-  summ <- broom::tidy(mod)
-}, .progress = T)
-
-obs_labels <- map(obs_for_lms, ~.x %>% select(ID1, ID2, dyad, situ) %>% distinct())
-obs_labels_static <- map(obs_for_lms_static, ~.x %>% select(ID1, ID2, dyad, situ) %>% distinct())
-
-lms_obs_summ_labeled <- map2(lms_obs_summ, obs_labels, ~bind_cols(.y, .x)) %>% purrr::list_rbind()
-lms_obs_summ_labeled_static <- map2(lms_obs_summ_static, obs_labels_static, ~bind_cols(.y, .x)) %>% purrr::list_rbind()
-
-# Calculate linear models for permuted data
-future::plan(future::multisession, workers = 20)
-perm_for_lms <- replicates %>%
-  group_split(dyad, situ, rep)
-perm_for_lms_static <- replicates_static %>%
-  group_split(dyad, situ, rep)
-lms_perm_summ <- furrr::future_map(perm_for_lms, ~{
-  mod <- lm(weight ~ period, data = .x)
-  summ <- broom::tidy(mod)
-}, .progress = T)
-lms_perm_summ_static <- furrr::future_map(perm_for_lms_static, ~{
-  mod <- lm(weight ~ period, data = .x)
-  summ <- broom::tidy(mod)
-}, .progress = T)
-
-perm_labels <- replicates %>% select(ID1, ID2, dyad, situ, rep) %>%
-  distinct() %>% mutate(n = 1:nrow(.))
-perm_labels_static <- replicates_static %>% select(ID1, ID2, dyad, situ, rep) %>%
-  distinct() %>% mutate(n = 1:nrow(.))
-
-lms_perm_summ <- lms_perm_summ %>% purrr::list_rbind(names_to = "n")
-lms_perm_summ_static <- lms_perm_summ_static %>% purrr::list_rbind(names_to = "n")
-
-lms_perm_summ_labeled <- left_join(perm_labels, lms_perm_summ, by = "n") %>% select(-n)
-lms_perm_summ_labeled_static <- left_join(perm_labels_static, lms_perm_summ_static, by = "n") %>% select(-n)
+save(lms_perm_summ_labeled, file = here("data/lms_perm_summ_labeled.Rda"))
+save(lms_perm_summ_labeled_static, file = here("data/lms_perm_summ_labeled.Rda"))
 
 ## Okay, now we can compare the regression results!
 # Let's pick a random dyad: "erasmus, scout"
