@@ -385,3 +385,16 @@ plotrandomdyad_againstrandom <- function(seed){
 
 plotrandomdyad_againstrandom(12)
 plotrandomdyad_againstrandom(1234)
+
+# In fact, how many individuals have a significant non-random slope for more than one situation?
+fifteen %>%
+  filter(nonrandom, term == "period", p.value_obs < 0.05) %>%
+  group_by(dyad) %>%
+  summarize(nsitus = length(unique(situ))) %>%
+  arrange(desc(nsitus)) # In fact, only one dyad had significant non-random slopes for more than one social situation (after filtering down to 15 periods or more).
+
+full <- fifteen %>%
+  bind_rows(fifteen %>% mutate("id1" = ID2, "id2" = ID1) %>%
+              select(-c(ID1, ID2)) %>%
+              rename("ID1" = "id1",
+                     "ID2" = "id2"))
