@@ -299,3 +299,7 @@ length(unique(friends_static$dyad))
 length(unique(enemies$dyad))
 length(unique(enemies_static$dyad))
 # these are really weird numbers! What gives??
+
+# Let's quantify some example trajectories ------------------------------------
+
+

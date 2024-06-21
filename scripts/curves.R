@@ -1,5 +1,6 @@
 library(targets)
 library(tidyverse)
+library(dendextend)
 source("R/functions.R")
 tar_load(curves)
 tar_load(curves_seasons)
@@ -71,26 +72,27 @@ curves_hours %>%
 
 # Heat maps ---------------------------------------------------------------
 ## Let's start with seasons so it's more manageable
-season_names_brief <- c("[1] F20", "[2] B21", "[3] S21", "[4] F21", "[5] B22", "[6] S22", "[7] F22", "[8] B23", "[9] S23")
 mat_fl <- provideDimnames(as.matrix(red_flight_cat_seasons$JSD), sep = "",
-                       list(season_names_brief, season_names_brief))
+                       list(season_names, season_names))
 
 mat_fe <- provideDimnames(as.matrix(red_feeding_cat_seasons$JSD), sep = "",
-                          list(season_names_brief, season_names_brief))
+                          list(season_names, season_names))
 
 mat_ro <- provideDimnames(as.matrix(red_roosting_cat_seasons$JSD), sep = "",
-                          list(season_names_brief, season_names_brief))
+                          list(season_names, season_names))
 
 mat_ag <- provideDimnames(as.matrix(red_aggregate_cat_seasons$JSD), sep = "",
-                          list(season_names_brief, season_names_brief))
+                          list(season_names, season_names))
 
-gplots::heatmap.2(mat_fl, trace = "none", Rowv = FALSE, Colv = FALSE, dendrogram = "none", density.info = "density", key.title = "", keysize = 2, key.xlab = "", key.ylab = "", main = "Co-flight") 
+# gplots::heatmap.2(mat_fl, trace = "none", Rowv = FALSE, Colv = FALSE, dendrogram = "none", density.info = "density", key.title = "", keysize = 2, key.xlab = "", key.ylab = "", main = "Co-flight") 
 
-gplots::heatmap.2(mat_fe, trace = "none", Rowv = FALSE, Colv = FALSE, dendrogram = "none", density.info = "density", key.title = "", keysize = 2, key.xlab = "", key.ylab = "", main = "Co-feeding") 
+gplots::heatmap.2(mat_fe, trace = "none", Rowv = FALSE, Colv = FALSE, dendrogram = "none", density.info = "density", key = FALSE, main = "", margins = c(10, 10)) 
 
-gplots::heatmap.2(mat_ro, trace = "none", Rowv = FALSE, Colv = FALSE, dendrogram = "none", density.info = "density", key.title = "", keysize = 2, key.xlab = "", key.ylab = "", main = "Co-roosting") 
+gplots::heatmap.2(mat_fe, trace = "none", Rowv = TRUE, Colv = TRUE, dendrogram = "row", density.info = "density", key = FALSE, main = "", margins = c(10, 10)) 
 
-gplots::heatmap.2(mat_ag, trace = "none", Rowv = FALSE, Colv = FALSE, dendrogram = "none", density.info = "density", key.title = "", keysize = 2, key.xlab = "", key.ylab = "", main = "Aggregate") 
+# gplots::heatmap.2(mat_ro, trace = "none", Rowv = FALSE, Colv = FALSE, dendrogram = "none", density.info = "density", key.title = "", keysize = 2, key.xlab = "", key.ylab = "", main = "Co-roosting") 
+
+# gplots::heatmap.2(mat_ag, trace = "none", Rowv = FALSE, Colv = FALSE, dendrogram = "none", density.info = "density", key.title = "", keysize = 2, key.xlab = "", key.ylab = "", main = "Aggregate") 
 
 # So it is not the case that we see a seasonal signature--if that was true, then we'd expect the patterns to be more similar between seasons of the same type than between adjacent seasons. What we see is that one season basically follows from the last.
 
