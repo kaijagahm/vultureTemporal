@@ -184,8 +184,11 @@ load(here("data/lms_obs_summ_labeled_static.Rda"))
 # lms_perm_summ_labeled <- left_join(perm_labels, lms_perm_summ, by = "n") %>% select(-n)
 # lms_perm_summ_labeled_static <- left_join(perm_labels_static, lms_perm_summ_static, by = "n") %>% select(-n)
 
-save(lms_perm_summ_labeled, file = here("data/lms_perm_summ_labeled.Rda"))
-save(lms_perm_summ_labeled_static, file = here("data/lms_perm_summ_labeled.Rda"))
+# save(lms_perm_summ_labeled, file = here("data/lms_perm_summ_labeled.Rda"))
+# save(lms_perm_summ_labeled_static, file = here("data/lms_perm_summ_labeled_static.Rda"))
+
+load(here("data/lms_perm_summ_labeled.Rda"))
+load(here("data/lms_perm_summ_labeled_static.Rda"))
 
 ## Okay, now we can compare the regression results!
 # Let's pick a random dyad: "erasmus, scout"
@@ -211,15 +214,6 @@ test_perm %>%
   theme_minimal()+
   geom_vline(data = test_obs %>% filter(term == "period"), 
              aes(xintercept = estimate, col = situ)) # nice! so the estimate is significantly different than expected by chance; these individuals actually have a positive trend in their co-roosting frequency over the course of the season, and that's a non-random positive trend.
-
-# okay but that's the estimates; what if we do the p-values instead?
-test_perm %>%
-  filter(term == "period") %>%
-  ggplot(aes(x = p.value, col = situ))+
-  geom_density()+
-  theme_minimal()+
-  geom_vline(data = test_obs %>% filter(term == "period"), 
-             aes(xintercept = p.value, col = situ)) # hmm, I don't think this is very informative...
 
 ## Add number of periods
 all_minimal <- minimal %>%
