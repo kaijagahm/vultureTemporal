@@ -20,10 +20,15 @@ source(here::here("R/functions.R"))
 
 ```{r}
 tar_load(timewindows_heuristic)
+tar_load(timewindows)
 tar_load(graphs_flight_heuristic)
 tar_load(graphs_feeding_heuristic)
 tar_load(graphs_roosting_heuristic)
 tar_load(graphs_aggregate_heuristic)
+tar_load(graphs_flight)
+tar_load(graphs_feeding)
+tar_load(graphs_roosting)
+tar_load(graphs_aggregate)
 ```
 
 General TWIN algorithm from the paper Meaningful Selection of Temporal Resolution for Dynamic Networks (Sulo et al. 2010)
@@ -53,17 +58,14 @@ nonzero <- function(g){
 }
 
 fl_density <- map(graphs_flight_heuristic, ~map_dbl(.x, ~igraph::edge_density(nonzero(.x))))
-fl_trans <- map(graphs_flight_heuristic, ~map_dbl(.x, ~igraph::transitivity(nonzero(.x))))
-fl_diam <- map(graphs_flight_heuristic, ~map_dbl(.x, ~igraph::diameter(nonzero(.x))))
 fe_density <- map(graphs_feeding_heuristic, ~map_dbl(.x, ~igraph::edge_density(nonzero(.x))))
-fe_trans <- map(graphs_feeding_heuristic, ~map_dbl(.x, ~igraph::transitivity(nonzero(.x))))
-fe_diam <- map(graphs_feeding_heuristic, ~map_dbl(.x, ~igraph::diameter(nonzero(.x))))
 ro_density <- map(graphs_roosting_heuristic, ~map_dbl(.x, ~igraph::edge_density(nonzero(.x))))
-ro_trans <- map(graphs_roosting_heuristic, ~map_dbl(.x, ~igraph::transitivity(nonzero(.x))))
-ro_diam <- map(graphs_roosting_heuristic, ~map_dbl(.x, ~igraph::diameter(nonzero(.x))))
 ag_density <- map(graphs_aggregate_heuristic, ~map_dbl(.x, ~igraph::edge_density(nonzero(.x))))
-ag_trans <- map(graphs_aggregate_heuristic, ~map_dbl(.x, ~igraph::transitivity(nonzero(.x))))
-ag_diam <- map(graphs_aggregate_heuristic, ~map_dbl(.x, ~igraph::diameter(nonzero(.x))))
+
+fl_density_orig <- map(graphs_flight, ~map_dbl(.x, ~igraph::edge_density(nonzero(.x))))
+fe_density_orig <- map(graphs_feeding, ~map_dbl(.x, ~igraph::edge_density(nonzero(.x))))
+ro_density_orig <- map(graphs_roosting, ~map_dbl(.x, ~igraph::edge_density(nonzero(.x))))
+ag_density_orig <- map(graphs_aggregate, ~map_dbl(.x, ~igraph::edge_density(nonzero(.x))))
 ```
 
 Let's visualize those over time, just for the sake of it
@@ -72,58 +74,54 @@ Let's visualize those over time, just for the sake of it
 #| warning: false
 #| message: false
 
-getmeasures <- function(dens, trans, diam, tw, sitch){
-  out <- pmap(list(dens, trans, diam, tw),
-              ~data.frame(dens = ..1, 
-                          trans = ..2, 
-                          diam = ..3, 
-                          w = ..4, 
+getmeasures <- function(dens, tw, sitch){
+  out <- map2(.x = dens, .y = tw,
+              ~data.frame(dens = .x, 
+                          w = .y, 
                           situ = sitch) %>%
                 mutate(step = 1:n(),
                        time = step*w))
   return(out)
 }
-measures_fl <- getmeasures(fl_density, fl_trans, fl_diam, 
-                           timewindows_heuristic, "flight")
-measures_fe <- getmeasures(fe_density, fe_trans, fe_diam, 
-                           timewindows_heuristic, "feeding")
-measures_ro <- getmeasures(ro_density, ro_trans, ro_diam, 
-                           timewindows_heuristic, "roosting")
-measures_ag <- getmeasures(ag_density, ag_trans, ag_diam, 
-                           timewindows_heuristic, "aggregate")
-all <- list(measures_fl, measures_fe, measures_ro, measures_ag)
+measures_fl <- getmeasures(fl_density, timewindows_heuristic, "flight")
+measures_fe <- getmeasures(fe_density, timewindows_heuristic, "feeding")
+measures_ro <- getmeasures(ro_density, timewindows_heuristic, "roosting")
+measures_ag <- getmeasures(ag_density, timewindows_heuristic, "aggregate")
+measures_fl_orig <- getmeasures(fl_density_orig, timewindows, "flight")
+measures_fe_orig <- getmeasures(fe_density_orig, timewindows, "feeding")
+measures_ro_orig <- getmeasures(ro_density_orig, timewindows, "roosting")
+measures_ag_orig <- getmeasures(ag_density_orig, timewindows, "aggregate")
+
+all <- list(measures_fl, measures_fe, measures_ro, measures_ag, measures_fl_orig, measures_fe_orig, measures_ro_orig, measures_ag_orig)
 all <- map(all, list_rbind)
 
 measures <- do.call(rbind, all) %>%
-  rename("density" = dens,
-         "transitivity" = trans,
-         "diameter" = diam) %>%
-  pivot_longer(cols = c("density", "transitivity", "diameter"), names_to = "measure", values_to = "value")
+  rename("density" = dens) %>%
+  arrange(situ, w)
 
 # Visualize: daily
 measures %>%
-  ggplot(aes(x = w, y = value, col = situ))+
-  facet_wrap(~situ*measure, ncol = 3, scales = "free_y")+
+  ggplot(aes(x = w, y = density, col = situ))+
   geom_point(pch = 1, alpha = 0.2)+
   geom_smooth()+
-  scale_color_manual(name = "Situation", values = c("firebrick3", situcolors))
-theme(legend.position = "none")
+  scale_color_manual(name = "Situation", values = c("firebrick3", situcolors))+
+  theme(legend.position = "none")
 ```
 
 Now let's plot the CV (sd/mean)
 
 ```{r}
 cvs <- measures %>%
-  group_by(w, situ, measure) %>%
-  summarize(mn = mean(value, na.rm = T),
-            sd = sd(value, na.rm = T),
+  group_by(w, situ) %>%
+  summarize(mn = mean(density, na.rm = T),
+            sd = sd(density, na.rm = T),
             cv = sd/mn) %>%
   ungroup() %>%
   mutate(w_days = w)
 
 cvs %>%
+  filter(w %in% c(1, 5, 10, 16, 21, 25, 31, 36, 41, 46)) %>%
   ggplot(aes(x = w_days, y = cv, col = situ))+
-  facet_wrap(~measure, scales = "free_y")+
   geom_line()+
   geom_point()+
   ylab("CV")+
@@ -137,10 +135,20 @@ cvs %>%
 ```{r}
 ## Density only, since that's most directly comparable to Caceres et al.
 cvs %>%
-  filter(measure == "density") %>%
+  ggplot(aes(x = w_days, y = cv, col = situ))+
+  geom_line()+
+  geom_point()+
+  ylab("CV")+
+  xlab("Time window (days)")+
+  scale_color_manual(name = "Situation", values = c("firebrick3", situcolors))+
+  theme(legend.position = "bottom",
+        text = element_text(size = 16))
+
+cvs %>%
+  filter(w %in% c(1, 5, 10, 16, 21, 25, 31, 36, 41, 46)) %>%
   ggplot(aes(x = w_days, y = cv, col = situ))+
   geom_line(linewidth = 1, alpha = 0.7)+
-  geom_point(size = 2, alpha = 0.7)+
+  #geom_point(size = 2, alpha = 0.7)+
   ylab("CV (Density)")+
   xlab("Time window (days)")+
   scale_color_manual(name = "Situation", values = c("firebrick3", situcolors))+
@@ -153,13 +161,13 @@ cvs %>%
 ```{r}
 ## Look at the time series at various scales
 measures %>%
-  filter(measure == "density", w %in% c(1, 11, 21, 31)) %>%
-  ggplot(aes(x = time, y = value, col = situ))+
+  filter(w %in% c(1, 5, 10, 25)) %>%
+  ggplot(aes(x = time, y = density, col = situ))+
   geom_line(aes(linewidth = situ, alpha = situ))+
   facet_wrap(~w, scales = "free_y")+
   scale_color_manual(name = "Situation", values = c("firebrick3", situcolors))+
-  scale_linewidth_manual(values = rep(0.7, 4))+
-  scale_alpha_manual(values = rep(0.7, 4))+
+  scale_linewidth_manual(values = c(0.5, 1, 0.5, 0.5))+
+  scale_alpha_manual(values = c(0.5, 1, 0.5, 0.5))+
   guides(linewidth = "none", alpha = "none",
          color = guide_legend(override.aes = 
                                 list(linewidth = 3, alpha = 1)))+
@@ -169,13 +177,11 @@ measures %>%
         text = element_text(size = 16))
 
 measures %>%
-  filter(measure == "density", w %in% c(1, 11, 21, 31)) %>%
-  ggplot(aes(x = time, y = value, col = situ))+
-  geom_line(aes(linewidth = situ, alpha = situ))+
+  filter(w %in% c(1, 5, 10, 25), situ == "feeding") %>%
+  ggplot(aes(x = time, y = density))+
+  geom_line(aes(linewidth = situ, alpha = situ), 
+            col = cc$feedingColor, linewidth = 1, alpha = 1)+
   facet_wrap(~w, scales = "free_y")+
-  scale_color_manual(name = "Situation", values = c("firebrick3", situcolors))+
-  scale_linewidth_manual(values = c(0.5, 1, 0.5, 0.5))+
-  scale_alpha_manual(values = c(0.5, 1, 0.5, 0.5))+
   guides(linewidth = "none", alpha = "none",
          color = guide_legend(override.aes = 
                                 list(linewidth = 3, alpha = 1)))+
