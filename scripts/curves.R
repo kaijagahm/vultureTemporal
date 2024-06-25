@@ -86,9 +86,20 @@ mat_ag <- provideDimnames(as.matrix(red_aggregate_cat_seasons$JSD), sep = "",
 
 # gplots::heatmap.2(mat_fl, trace = "none", Rowv = FALSE, Colv = FALSE, dendrogram = "none", density.info = "density", key.title = "", keysize = 2, key.xlab = "", key.ylab = "", main = "Co-flight") 
 
+## automatic
+gplots::heatmap.2(mat_fe, trace = "none", Rowv = TRUE, Colv = TRUE, dendrogram = "row", density.info = "density", key = FALSE, main = "", margins = c(10, 10)) # ok, so at first glance, this looks unordered, but we can actually order it without changing the information it contains, I *think*??
+
+## automatic ordered
+gplots::heatmap.2(mat_fe, trace = "none", Rowv = rotate(as.dendrogram(hclust(as.dist(mat_fe))), order = season_names), Colv = rotate(as.dendrogram(hclust(as.dist(mat_fe))), order = season_names), dendrogram = "row", density.info = "density", key = FALSE, main = "", margins = c(10, 10)) # ok, so at first glance, this looks unordered, but we can actually order it without changing the information it contains, I *think*??
+
+## forcibly ordered (without dendrogram)
+gplots::heatmap.2(mat_fe, trace = "none", Rowv = season_names, Colv = season_names, dendrogram = "none", density.info = "density", key = FALSE, main = "", margins = c(10, 10)) # hmm but now this is going the other way!
+
+
+## ordered
 gplots::heatmap.2(mat_fe, trace = "none", Rowv = FALSE, Colv = FALSE, dendrogram = "none", density.info = "density", key = FALSE, main = "", margins = c(10, 10)) 
 
-gplots::heatmap.2(mat_fe, trace = "none", Rowv = TRUE, Colv = TRUE, dendrogram = "row", density.info = "density", key = FALSE, main = "", margins = c(10, 10)) 
+gplots::heatmap.2(mat_fe, trace = "none", Rowv = rotate(as.dendrogram(hclust(as.dist(mat_fe))), order = season_names), Colv = rotate(as.dendrogram(hclust(as.dist(mat_fe))), order = season_names), dendrogram = "row", density.info = "density", key = FALSE, main = "", margins = c(10, 10)) 
 
 # gplots::heatmap.2(mat_ro, trace = "none", Rowv = FALSE, Colv = FALSE, dendrogram = "none", density.info = "density", key.title = "", keysize = 2, key.xlab = "", key.ylab = "", main = "Co-roosting") 
 
