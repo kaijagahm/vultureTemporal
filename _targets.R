@@ -1,10 +1,12 @@
 # Load packages required to define the pipeline:
 library(targets)
-# library(tarchetypes) # Load other packages as needed.
+library(tarchetypes)
+library(crew)
 
 # Set target options:
 tar_option_set(
-  packages = c("tibble", "purrr", "sf", "igraph", "muxViz", "Matrix", "dplyr") # Packages that your targets need for their tasks.
+  packages = c("tibble", "purrr", "sf", "igraph", "muxViz", "Matrix", "dplyr"), # Packages that your targets need for their tasks.
+  controller = crew_controller_local(workers = 4)
 )
 
 # Run the R scripts in the R/ folder with your custom functions:
