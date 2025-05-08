@@ -32,26 +32,18 @@ list(
   ### prepare edges
   tar_target(flight_sris_seasons, get_flight_sris(data_seasons, roostPolygons)),
   tar_target(feeding_sris_seasons, get_feeding_sris(data_seasons, roostPolygons)),
-  tar_target(roost_sris_seasons, get_roost_sris(roosts_seasons)),
   tar_target(allvertices_seasons, unique(list_rbind(data_seasons)$Nili_id)),
   tar_target(nnodes_seasons, length(allvertices_seasons)),
-  tar_target(aggregate_sris_seasons, get_aggregate_sris(flight_sris_seasons, feeding_sris_seasons, roost_sris_seasons, list = F)),
-  
+
   ### make graphs
   tar_target(graphs_flight_seasons, get_graphs(flight_sris_seasons, allvertices_seasons)),
   tar_target(graphs_feeding_seasons, get_graphs(feeding_sris_seasons, allvertices_seasons)),
-  tar_target(graphs_roosting_seasons, get_graphs(roost_sris_seasons, allvertices_seasons)),
-  tar_target(graphs_aggregate_seasons, get_graphs(aggregate_sris_seasons, allvertices_seasons)),
   ### Make tensors
   tar_target(tensor_flight_seasons, get_node_tensor(graphs_flight_seasons)),
   tar_target(tensor_feeding_seasons, get_node_tensor(graphs_feeding_seasons)),
-  tar_target(tensor_roosting_seasons, get_node_tensor(graphs_roosting_seasons)),
-  tar_target(tensor_aggregate_seasons, get_node_tensor(graphs_aggregate_seasons)),
   ### get nlayers
   tar_target(nlayers_flight_seasons, length(tensor_flight_seasons)),
   tar_target(nlayers_feeding_seasons, length(tensor_feeding_seasons)),
-  tar_target(nlayers_roosting_seasons, length(tensor_roosting_seasons)),
-  tar_target(nlayers_aggregate_seasons, length(tensor_aggregate_seasons)),
   ### get reducibility curves
   tar_target(red_flight_cat_seasons, get_reducibility(graphs_flight_seasons,
                                                       nlayers_flight_seasons,
@@ -61,68 +53,42 @@ list(
                                                        nlayers_feeding_seasons,
                                                        nnodes_seasons,
                                                        type = "Categorical")),
-  tar_target(red_roosting_cat_seasons, get_reducibility(graphs_roosting_seasons,
-                                                        nlayers_roosting_seasons,
-                                                        nnodes_seasons,
-                                                        type = "Categorical")),
-  tar_target(red_aggregate_cat_seasons, get_reducibility(graphs_aggregate_seasons,
-                                                         nlayers_aggregate_seasons,
-                                                         nnodes_seasons,
-                                                         type = "Categorical")),
   tar_target(curves_seasons, purrr::list_rbind(list(
     get_reduc_curves_df_seasons(red_flight_cat_seasons, "categorical", "flight"),
-    get_reduc_curves_df_seasons(red_feeding_cat_seasons, "categorical", "feeding"),
-    get_reduc_curves_df_seasons(red_roosting_cat_seasons, "categorical", "roosting"),
-    get_reduc_curves_df_seasons(red_aggregate_cat_seasons, "categorical", "aggregate")))),
+    get_reduc_curves_df_seasons(red_feeding_cat_seasons, "categorical", "feeding")))),
   
   # DAYS ---------------------------------------------------------------------
-  ### select one season to work with (Summer 2023). Including all three social situations.
+  ### select one season to work with (Summer 2023). Including only flight and feeding.
   tar_target(summer2023data, alldata_prepped[[which(season_names == "2023_summer")]]),
-  tar_target(summer2023roosts, roosts[[which(season_names == "2023_summer")]]),
-  
+
   ### Cut data
   tar_target(timewindows, c(1, 5, 10, 25)),
   tar_target(timewindows_heuristic, seq(from = 1, to = 50, by = 5)),
   tar_target(data_cut, cut_data(summer2023data, timewindows)),
   tar_target(data_cut_heuristic, cut_data(summer2023data, timewindows_heuristic)),
-  tar_target(roosts_cut, cut_roosts(summer2023roosts, timewindows)),
-  tar_target(roosts_cut_heuristic, cut_roosts(summer2023roosts, timewindows_heuristic)),
   ### Prepare edges
   tar_target(flight_sris, map(data_cut, ~get_flight_sris(.x, roostPolygons))),
   tar_target(feeding_sris, map(data_cut, ~get_feeding_sris(.x, roostPolygons))),
-  tar_target(roost_sris, map(roosts_cut, ~get_roost_sris(.x))),
   tar_target(flight_sris_heuristic, map(data_cut_heuristic, ~get_flight_sris(.x, roostPolygons))),
   tar_target(feeding_sris_heuristic, map(data_cut_heuristic, ~get_feeding_sris(.x, roostPolygons))),
-  tar_target(roost_sris_heuristic, map(roosts_cut_heuristic, ~get_roost_sris(.x))),
   tar_target(allvertices, map(data_cut, ~unique(list_rbind(.x)$Nili_id))),
   tar_target(allvertices_heuristic, map(data_cut_heuristic, ~unique(list_rbind(.x)$Nili_id))),
   tar_target(nnodes, map_dbl(allvertices, length)),
-  tar_target(aggregate_sris, get_aggregate_sris(flight_sris, feeding_sris, roost_sris, list = T)),
-  tar_target(aggregate_sris_heuristic, get_aggregate_sris(flight_sris_heuristic, feeding_sris_heuristic, roost_sris_heuristic, list = T)),
   ### Make graphs
   tar_target(graphs_flight, map2(flight_sris, allvertices, ~get_graphs(.x, .y))),
   tar_target(graphs_feeding, map2(feeding_sris, allvertices, ~get_graphs(.x, .y))),
-  tar_target(graphs_roosting, map2(roost_sris, allvertices, ~get_graphs(.x, .y))),
-  tar_target(graphs_aggregate, map2(aggregate_sris, allvertices, ~get_graphs(.x, .y))),
-  
+
   tar_target(graphs_flight_heuristic, 
              map2(flight_sris_heuristic, allvertices_heuristic, ~get_graphs(.x, .y))),
   tar_target(graphs_feeding_heuristic, 
              map2(feeding_sris_heuristic, allvertices_heuristic, ~get_graphs(.x, .y))),
-  tar_target(graphs_roosting_heuristic, 
-             map2(roost_sris_heuristic, allvertices_heuristic, ~get_graphs(.x, .y))),
-  tar_target(graphs_aggregate_heuristic, 
-             map2(aggregate_sris_heuristic, allvertices_heuristic, ~get_graphs(.x, .y))),
+
   ### Make tensors
   tar_target(tensors_flight, map(graphs_flight, get_node_tensor)),
   tar_target(tensors_feeding, map(graphs_feeding, get_node_tensor)),
-  tar_target(tensors_roosting, map(graphs_roosting, get_node_tensor)),
-  tar_target(tensors_aggregate, map(graphs_aggregate, get_node_tensor)),
   ### get nlayers
   tar_target(nlayers_flight, map_dbl(tensors_flight, length)),
   tar_target(nlayers_feeding, map_dbl(tensors_feeding, length)),
-  tar_target(nlayers_roosting, map_dbl(tensors_roosting, length)),
-  tar_target(nlayers_aggregate, map_dbl(tensors_aggregate, length)),
   ### get reducibility curves
   tar_target(red_flight_cat, pmap(list(graphs_flight, nlayers_flight, nnodes),
                                   ~get_reducibility(..1, ..2, ..3,
@@ -130,60 +96,16 @@ list(
   tar_target(red_feeding_cat, pmap(list(graphs_feeding, nlayers_feeding, nnodes),
                                    ~get_reducibility(..1, ..2, ..3,
                                                      type = "Categorical"))),
-  tar_target(red_roosting_cat, pmap(list(graphs_roosting, nlayers_roosting, nnodes),
-                                    ~get_reducibility(..1, ..2, ..3,
-                                                      type = "Categorical"))),
-  tar_target(red_aggregate_cat, pmap(list(graphs_aggregate, nlayers_aggregate, nnodes),
-                                     ~get_reducibility(..1, ..2, ..3,
-                                                       type = "Categorical"))),
   tar_target(curves, purrr::list_rbind(list(
     get_reduc_curves_df(red_flight_cat, timewindows, "categorical", "flight"),
-    get_reduc_curves_df(red_feeding_cat, timewindows, "categorical", "feeding"),
-    get_reduc_curves_df(red_roosting_cat, timewindows, "categorical", "roosting"),
-    get_reduc_curves_df(red_aggregate_cat, timewindows, "categorical", "aggregate")
+    get_reduc_curves_df(red_feeding_cat, timewindows, "categorical", "feeding")
   ))),
   
-  # HOURS -------------------------------------------------------------------
-  ### select a 10-day period, let's say July 1-July 10 2023 (not doing roosts for this because it's for hourly data.)
-  tar_target(data_10day, summer2023data %>%
-               filter(dateOnly >= lubridate::ymd("2023-07-01"),
-                      dateOnly <= lubridate::ymd("2023-07-10"))),
-  tar_target(data_cut_hours, cuttimes(data_10day, mins = "60")),
-  tar_target(allvertices_hours, unique(list_rbind(data_cut_hours)$Nili_id)),
-  tar_target(nnodes_hours, length(allvertices_hours)),
-  tar_target(flight_sris_hours, get_flight_sris(data_cut_hours, roostPolygons)),
-  tar_target(feeding_sris_hours, get_feeding_sris(data_cut_hours, roostPolygons)),
-  #### make graphs
-  tar_target(graphs_flight_hours, get_graphs(flight_sris_hours, allvertices)),
-  tar_target(graphs_feeding_hours, get_graphs(feeding_sris_hours, allvertices)),
-  #### make tensors
-  tar_target(tensor_flight_hours, get_node_tensor(graphs_flight_hours)),
-  tar_target(tensor_feeding_hours, get_node_tensor(graphs_feeding_hours)),
-  #### get nlayers
-  tar_target(nlayers_feeding_hours, length(tensor_feeding_hours)),
-  tar_target(nlayers_flight_hours, length(tensor_flight_hours)),
-  ### get reducibility curves
-  tar_target(red_flight_hours_cat,
-             get_reducibility(graphs_flight_hours, nlayers_flight_hours,
-                              nnodes_hours, type = "Categorical")),
-  tar_target(red_feeding_hours_cat,
-             get_reducibility(graphs_feeding_hours, nlayers_feeding_hours,
-                              nnodes_hours, type = "Categorical")),
-  tar_target(curves_hours,
-             pmap(.l = list(data = list(red_flight_hours_cat,
-                                        red_feeding_hours_cat),
-                            type = "categorical",
-                            situ = c("flight", "feeding")
-             ), ~data.frame(ent = ..1$gQualityFunction,
-                            timewindow = "1 hour",
-                            type = ..2, situ = ..3) %>%
-               dplyr::mutate(step = 1:nrow(.))) %>% purrr::list_rbind()),
   ## Dyads
   tar_target(fe_5days_fordyads, prep(feeding_sris[[2]], "feeding")),
   tar_target(fl_5days_fordyads, prep(flight_sris[[2]], "flight")),
-  tar_target(ro_5days_fordyads, prep(roost_sris[[2]], "roosting")),
   tar_target(all_5days_fordyads, 
-             list_rbind(list(fe_5days_fordyads, fl_5days_fordyads, ro_5days_fordyads)) %>% 
+             list_rbind(list(fe_5days_fordyads, fl_5days_fordyads)) %>% 
                mutate(dyad = paste(ID1, ID2, sep = ", ")) %>%
                group_by(dyad, situ) %>%
                mutate(n_dyad_situ = n(),
@@ -194,17 +116,13 @@ list(
                       n_dyad_nonzero = sum(weight > 0))),
   tar_target(sri_dist_fl, pull(fl_5days_fordyads, weight)),
   tar_target(sri_dist_fe, pull(fe_5days_fordyads, weight)),
-  tar_target(sri_dist_ro, pull(ro_5days_fordyads, weight)),
   tar_target(static_fl, fl_5days_fordyads %>% 
                select(ID1, ID2, situ, period) %>% 
                mutate(weight = sample(sri_dist_fl))),
   tar_target(static_fe, fe_5days_fordyads %>% 
                select(ID1, ID2, situ, period) %>% 
                mutate(weight = sample(sri_dist_fe))),
-  tar_target(static_ro, ro_5days_fordyads %>% 
-               select(ID1, ID2, situ, period) %>% 
-               mutate(weight = sample(sri_dist_ro))),
-  tar_target(static, bind_rows(static_fl, static_fe, static_ro) %>%
+  tar_target(static, bind_rows(static_fl, static_fe) %>%
                mutate(dyad = paste(ID1, ID2, sep = ", "))),
   tar_target(gs, get_networks_dyads(all_5days_fordyads)),
   tar_target(gs_static, get_networks_dyads(static)),
