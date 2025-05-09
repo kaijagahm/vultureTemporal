@@ -5,7 +5,7 @@ library(crew)
 
 # Set target options:
 tar_option_set(
-  packages = c("tibble", "purrr", "sf", "igraph", "muxViz", "Matrix", "dplyr"), # Packages that your targets need for their tasks.
+  packages = c("tidyverse", "tibble", "purrr", "sf", "igraph", "muxViz", "Matrix", "dplyr"), # Packages that your targets need for their tasks.
   controller = crew_controller_local(workers = 4)
 )
 
