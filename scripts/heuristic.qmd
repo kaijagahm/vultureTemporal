@@ -23,12 +23,8 @@ tar_load(timewindows_heuristic)
 tar_load(timewindows)
 tar_load(graphs_flight_heuristic)
 tar_load(graphs_feeding_heuristic)
-tar_load(graphs_roosting_heuristic)
-tar_load(graphs_aggregate_heuristic)
 tar_load(graphs_flight)
 tar_load(graphs_feeding)
-tar_load(graphs_roosting)
-tar_load(graphs_aggregate)
 ```
 
 General TWIN algorithm from the paper Meaningful Selection of Temporal Resolution for Dynamic Networks (Sulo et al. 2010)
@@ -59,13 +55,9 @@ nonzero <- function(g){
 
 fl_density <- map(graphs_flight_heuristic, ~map_dbl(.x, ~igraph::edge_density(nonzero(.x))))
 fe_density <- map(graphs_feeding_heuristic, ~map_dbl(.x, ~igraph::edge_density(nonzero(.x))))
-ro_density <- map(graphs_roosting_heuristic, ~map_dbl(.x, ~igraph::edge_density(nonzero(.x))))
-ag_density <- map(graphs_aggregate_heuristic, ~map_dbl(.x, ~igraph::edge_density(nonzero(.x))))
 
 fl_density_orig <- map(graphs_flight, ~map_dbl(.x, ~igraph::edge_density(nonzero(.x))))
 fe_density_orig <- map(graphs_feeding, ~map_dbl(.x, ~igraph::edge_density(nonzero(.x))))
-ro_density_orig <- map(graphs_roosting, ~map_dbl(.x, ~igraph::edge_density(nonzero(.x))))
-ag_density_orig <- map(graphs_aggregate, ~map_dbl(.x, ~igraph::edge_density(nonzero(.x))))
 ```
 
 Let's visualize those over time, just for the sake of it
@@ -85,14 +77,11 @@ getmeasures <- function(dens, tw, sitch){
 }
 measures_fl <- getmeasures(fl_density, timewindows_heuristic, "flight")
 measures_fe <- getmeasures(fe_density, timewindows_heuristic, "feeding")
-measures_ro <- getmeasures(ro_density, timewindows_heuristic, "roosting")
-measures_ag <- getmeasures(ag_density, timewindows_heuristic, "aggregate")
+
 measures_fl_orig <- getmeasures(fl_density_orig, timewindows, "flight")
 measures_fe_orig <- getmeasures(fe_density_orig, timewindows, "feeding")
-measures_ro_orig <- getmeasures(ro_density_orig, timewindows, "roosting")
-measures_ag_orig <- getmeasures(ag_density_orig, timewindows, "aggregate")
 
-all <- list(measures_fl, measures_fe, measures_ro, measures_ag, measures_fl_orig, measures_fe_orig, measures_ro_orig, measures_ag_orig)
+all <- list(measures_fl, measures_fe, measures_fl_orig, measures_fe_orig)
 all <- map(all, list_rbind)
 
 measures <- do.call(rbind, all) %>%
@@ -104,7 +93,7 @@ measures %>%
   ggplot(aes(x = w, y = density, col = situ))+
   geom_point(pch = 1, alpha = 0.2)+
   geom_smooth()+
-  scale_color_manual(name = "Situation", values = c("firebrick3", situcolors))+
+  scale_color_manual(name = "Situation", values = situcolors[1:2])+
   theme(legend.position = "none")
 ```
 
