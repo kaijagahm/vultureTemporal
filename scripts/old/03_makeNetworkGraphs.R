@@ -43,18 +43,3 @@ for(i in 1:length(graph_types)){
     }, .progress = T)
   })
 }
-
-# # Flattened lists of plots and filenames, in case we want to do it this way.
-# filenames_list <- map(graph_types, ~{
-#   unlist(map(.x, "filenames"))
-# }) %>% unlist()
-# 
-# plots_list <- map(graph_types, ~{
-#   do.call(c, map(.x, "plots"))
-# }) %>% do.call(c, .)
-# 
-# for(i in 1:length(filenames_list)){
-#   ggsave(filename = filenames_list[i], plot = plots_list[[i]], height = 6, width = 6, create.dir = T)
-#   cat(".")
-# }
-
