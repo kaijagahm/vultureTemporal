@@ -32,7 +32,9 @@ list(
   tar_target(roosts_seasons, roosts),
   ### prepare edges
   tar_target(flight_sris_seasons, get_flight_sris(data_seasons, roostPolygons)),
+  tar_target(flight_edges_seasons, get_flight_edgelists(data_seasons, roostPolygons)),
   tar_target(feeding_sris_seasons, get_feeding_sris(data_seasons, roostPolygons)),
+  tar_target(feeding_edges_seasons, get_feeding_edgelists(data_seasons, roostPolygons)),
   tar_target(allvertices_seasons, unique(list_rbind(data_seasons)$Nili_id)),
   tar_target(nnodes_seasons, length(allvertices_seasons)),
 

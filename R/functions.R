@@ -88,6 +88,13 @@ get_flight_sris <- function(datalist, roostPolygons){
   return(flight_sri_2)
 }
 
+get_flight_edgelists <- function(datalist, roostPolygons){
+  flight_edges <- purrr::map(datalist, ~{
+    library(sf)
+    vultureUtils::getFlightEdges(.x, roostPolygons = roostPolygons, distThreshold = 1000, idCol = "Nili_id", return = "edges")}, .progress = T)
+  return(flight_edges)
+}
+
 get_feeding_sris <- function(datalist, roostPolygons){
   feeding_sri <- purrr::map(datalist, ~{
     library(sf)
@@ -102,6 +109,13 @@ get_feeding_sris <- function(datalist, roostPolygons){
       dplyr::select(ID1, ID2, weight)
   })
   return(feeding_sri_2)
+}
+
+get_feeding_edgelists <- function(datalist, roostPolygons){
+  feeding_edges <- purrr::map(datalist, ~{
+    library(sf)
+    vultureUtils::getFeedingEdges(.x, roostPolygons = roostPolygons, distThreshold = 50, idCol = "Nili_id", return = "edges")}, .progress = T)
+  return(feeding_edges)
 }
 
 get_roost_sris <- function(roostlist){
