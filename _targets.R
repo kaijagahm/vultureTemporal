@@ -5,7 +5,7 @@ library(crew)
 
 # Set target options:
 tar_option_set(
-  packages = c("tidyverse", "tibble", "purrr", "sf", "igraph", "muxViz", "Matrix", "dplyr")#, # Packages that your targets need for their tasks.
+  packages = c("tidyverse", "tibble", "purrr", "sf", "igraph", "muxViz", "Matrix", "dplyr", "vultureUtils")#, # Packages that your targets need for their tasks.
 )
 
 # Run the R scripts in the R/ folder with your custom functions:
@@ -32,9 +32,7 @@ list(
   tar_target(roosts_seasons, roosts),
   ### prepare edges
   tar_target(flight_sris_seasons, get_flight_sris(data_seasons, roostPolygons)),
-  tar_target(flight_edges_seasons, get_flight_edgelists(data_seasons, roostPolygons)),
   tar_target(feeding_sris_seasons, get_feeding_sris(data_seasons, roostPolygons)),
-  tar_target(feeding_edges_seasons, get_feeding_edgelists(data_seasons, roostPolygons)),
   tar_target(allvertices_seasons, unique(list_rbind(data_seasons)$Nili_id)),
   tar_target(nnodes_seasons, length(allvertices_seasons)),
 
@@ -76,6 +74,10 @@ list(
   tar_target(feeding_sris_heuristic, map(data_cut_heuristic, ~get_feeding_sris(.x, roostPolygons))),
   tar_target(allvertices, map(data_cut, ~unique(list_rbind(.x)$Nili_id))),
   tar_target(allvertices_heuristic, map(data_cut_heuristic, ~unique(list_rbind(.x)$Nili_id))),
+  
+  ## Get edges for the 1-day time window
+  tar_target(feeding_edges, getFeedingEdges(dataset = summer2023data, roostPolygons = roostPolygons, return = "edges", consecThreshold = 2)),
+  tar_target(flight_edges, getFlightEdges(dataset = summer2023data, roostPolygons = roostPolygons, return = "edges", consecThreshold = 2)),
   tar_target(nnodes, map_dbl(allvertices, length)),
   ### Make graphs
   tar_target(graphs_flight, map2(flight_sris, allvertices, ~get_graphs(.x, .y))),
