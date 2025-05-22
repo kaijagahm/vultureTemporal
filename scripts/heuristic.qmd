@@ -8,6 +8,7 @@ editor: visual
 library(targets)
 library(igraph)
 library(tidyverse)
+library(here)
 tar_config_set(
   script = here::here('_targets.R'),
   store = here::here('_targets')
@@ -133,10 +134,10 @@ cvs %>%
   theme(legend.position = "bottom",
         text = element_text(size = 16))
 
-cvs %>%
+cvs_fig <- cvs %>%
   filter(w %in% c(1, 5, 10, 16, 21, 25, 31, 36, 41, 46)) %>%
   ggplot(aes(x = w_days, y = cv, col = situ))+
-  geom_line(linewidth = 1, alpha = 0.7)+
+  geom_line(linewidth = 2, alpha = 1)+
   #geom_point(size = 2, alpha = 0.7)+
   ylab("CV (Density)")+
   xlab("Time window (days)")+
@@ -145,6 +146,7 @@ cvs %>%
         text = element_text(size = 16))+
   guides(color = guide_legend(override.aes = 
                                 list(linewidth = 2, size = 3, alpha = 1)))
+ggsave(cvs_fig, file = here("fig/cvs_lines.png"), width = 6, height = 4)
 ```
 
 ```{r}
@@ -165,17 +167,26 @@ measures %>%
   theme(legend.position = "bottom",
         text = element_text(size = 16))
 
-measures %>%
-  filter(w %in% c(1, 5, 10, 25), situ == "feeding") %>%
-  ggplot(aes(x = time, y = density))+
-  geom_line(aes(linewidth = situ, alpha = situ), 
-            col = cc$feedingColor, linewidth = 1, alpha = 1)+
-  facet_wrap(~w, scales = "free_y")+
+density_over_time <- measures %>%
+  filter(w %in% c(1, 5, 10, 25), situ %in% c("feeding", "flight")) %>%
+  ggplot(aes(x = time, y = density, col = situ))+
+  geom_line(aes(linewidth = situ, alpha = situ), linewidth = 1, alpha = 1)+
+  scale_color_manual(values = situcolors[1:2])+
+  facet_wrap(~w, scales = "free")+
   guides(linewidth = "none", alpha = "none",
          color = guide_legend(override.aes = 
                                 list(linewidth = 3, alpha = 1)))+
   ylab("Density")+
   xlab("Time")+
+  scale_y_continuous(limits =c(0, 0.8), breaks = seq(from = 0, to = 0.8, by = 0.2))+
+  scale_x_continuous(limits = c(0, 130), breaks = seq(from = 0, to = 130, by = 25))+
   theme(legend.position = "bottom",
-        text = element_text(size = 16))
+        text = element_text(size = 16),
+        strip.text = element_blank(),
+        strip.background = element_blank(),
+        axis.text = element_text(size = 12))
+density_over_time
+
+ggsave(density_over_time, file = here("fig/density_over_time.png"), width = 6, height = 4)
 ```
+
