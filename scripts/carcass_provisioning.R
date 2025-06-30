@@ -15,19 +15,20 @@ summer2023 %>%
   theme_minimal()+
   guides(color = "none")
 
-summer2023 <- summer2023 %>%
-  arrange(date) %>%
-  group_by(stationName) %>%
-  mutate(interval = date-lag(date))
+levels <- summer2023 %>% group_by(stationName) %>% summarize(mn = mean(interval, na.rm = T)) %>% arrange(mn) %>% pull(stationName)
+summer2023 %>%
+  mutate(stationName = factor(stationName, levels = rev(levels))) %>%
+  ggplot(aes(x = stationName, y = interval))+
+  geom_hline(aes(yintercept = 2), col = "red", linetype = 2, alpha = 0.5)+
+  geom_hline(aes(yintercept = 20), col = "red", linetype = 2, alpha = 0.5)+
+  geom_boxplot(fill = NA, col = "lightgray")+
+  geom_jitter(width = 0.1, alpha = 0.5, pch = 1, size = 1)+
+  scale_y_continuous(breaks = seq(from = 0, to = 90, by = 5))+
+  labs(y = "Carcass interval (days)",
+       x = "Feeding station")+
+  coord_flip()+
+  geom_point(data = summer2023 %>% group_by(stationName) %>% summarize(mn = mean(interval, na.rm = T)), aes(x = stationName, y = mn), col = "dodgerblue", size = 2)
 
 summer2023 %>%
-  group_by(stationName) %>%
-  summarize(mn = mean(interval, na.rm = T)) %>%
-  ggplot(aes(x = mn))+geom_histogram()
-
-summer2023 %>%
-  group_by(stationName) %>%
-  summarize(ncarcasses = n(),
-            mn = mean(interval, na.rm = T)) %>%
-  ggplot(aes(x = ncarcasses, y = mn))+
-  geom_point()
+  ggplot(aes(x = date, y = lat))+
+  geom_point() # does not appear to be a decline in carcasses over time in general
