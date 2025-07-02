@@ -112,41 +112,5 @@ list(
   tar_target(curves, purrr::list_rbind(list(
     get_reduc_curves_df(red_flight_cat, timewindows, "categorical", "flight"),
     get_reduc_curves_df(red_feeding_cat, timewindows, "categorical", "feeding")
-  )))#,
-  
-  ## Dyads
-  # tar_target(fe_5days_fordyads, prep(feeding_sris[[2]], "feeding")),
-  # tar_target(fl_5days_fordyads, prep(flight_sris[[2]], "flight")),
-  # tar_target(all_5days_fordyads, 
-  #            list_rbind(list(fe_5days_fordyads, fl_5days_fordyads)) %>% 
-  #              mutate(dyad = paste(ID1, ID2, sep = ", ")) %>%
-  #              group_by(dyad, situ) %>%
-  #              mutate(n_dyad_situ = n(),
-  #                     n_dyad_situ_nonzero = sum(weight > 0)) %>%
-  #              ungroup() %>%
-  #              group_by(dyad) %>%
-  #              mutate(n_dyad = n(),
-  #                     n_dyad_nonzero = sum(weight > 0))),
-  # tar_target(sri_dist_fl, pull(fl_5days_fordyads, weight)),
-  # tar_target(sri_dist_fe, pull(fe_5days_fordyads, weight)),
-  # tar_target(static_fl, fl_5days_fordyads %>% 
-  #              select(ID1, ID2, situ, period) %>% 
-  #              mutate(weight = sample(sri_dist_fl))),
-  # tar_target(static_fe, fe_5days_fordyads %>% 
-  #              select(ID1, ID2, situ, period) %>% 
-  #              mutate(weight = sample(sri_dist_fe))),
-  # tar_target(static, bind_rows(static_fl, static_fe) %>%
-  #              mutate(dyad = paste(ID1, ID2, sep = ", "))),
-  # tar_target(gs, get_networks_dyads(all_5days_fordyads)),
-  # tar_target(gs_static, get_networks_dyads(static)),
-  # tar_target(shuffled_reps_df, get_shuffled_reps_df(graphs = gs, reps = 100)),
-  # tar_target(shuffled_reps_static_df, get_shuffled_reps_df(graphs = gs_static, reps = 100)),
-  # tar_target(replicates, correct_dyad_id_order(shuffled_reps_df)),
-  # tar_target(replicates_static, correct_dyad_id_order(shuffled_reps_static_df)),
-  # tar_target(lms_obs_summ, get_lms(all_5days_fordyads)),
-  # tar_target(lms_obs_summ_static, get_lms(static)),
-  # tar_target(lms_perm_summ, get_lms_permuted(replicates, workers = 20)),
-  # tar_target(lms_perm_summ_static, get_lms_permuted(replicates_static, workers = 20)),
-  # tar_target(combined_obs, get_combined(all_5days_fordyads, lms_obs_summ, lms_perm_summ)),
-  # tar_target(combined_static, get_combined(static, lms_obs_summ_static, lms_perm_summ_static))
+  )))
 )
