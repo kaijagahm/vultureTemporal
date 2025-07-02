@@ -1,6 +1,6 @@
 library(targets)
 library(tidyverse)
-#library(dendextend)
+library(dendextend)
 library(here)
 library(gplots)
 source("R/functions.R")
@@ -83,6 +83,8 @@ season_names_abbreviated <- str_replace(season_names_abbreviated, "summer", "S")
 season_names_abbreviated <- str_remove(season_names_abbreviated, "20")
 colnames(mat_fl) <- season_names_abbreviated
 rownames(mat_fl) <- season_names_abbreviated
+colnames(mat_fe) <- season_names_abbreviated
+rownames(mat_fe) <- season_names_abbreviated
 
 # --- Heatmap 1: Original with dendrogram (as per your reprex) ---
 gplots::heatmap.2(mat_fl, trace = "none", dendrogram = "row", key = FALSE,
@@ -90,13 +92,27 @@ gplots::heatmap.2(mat_fl, trace = "none", dendrogram = "row", key = FALSE,
 
 # --- Heatmap 2: Dendrogram rotated as close as possible to temporal order (as per your reprex) ---
 gplots::heatmap.2(mat_fl, trace = "none",
-                  Rowv = rotate(as.dendrogram(hclust(as.dist(mat_fl))), order = season_names_abbreviated),
-                  Colv = rotate(as.dendrogram(hclust(as.dist(mat_fl))), order = season_names_abbreviated),
+                  Rowv = dendextend::rotate(as.dendrogram(hclust(as.dist(mat_fl))), order = season_names_abbreviated),
+                  Colv = dendextend::rotate(as.dendrogram(hclust(as.dist(mat_fl))), order = season_names_abbreviated),
+                  dendrogram = "column", 
+                  key = TRUE, margins = c(10, 10), density.info = "none", key.title = "", key.xlab= "", key.ylab = "", keysize = 2)
+
+gplots::heatmap.2(mat_fe, trace = "none",
+                  Rowv = dendextend::rotate(as.dendrogram(hclust(as.dist(mat_fe))), order = season_names_abbreviated),
+                  Colv = dendextend::rotate(as.dendrogram(hclust(as.dist(mat_fe))), order = season_names_abbreviated),
                   dendrogram = "column", 
                   key = TRUE, margins = c(10, 10), density.info = "none", key.title = "", key.xlab= "", key.ylab = "", keysize = 2)
 
 # --- Heatmap 3: No dendrogram, forced temporal order, matching reflection ---
 gplots::heatmap.2(mat_fl[rev(season_names_abbreviated), season_names_abbreviated], 
+                  trace = "none",
+                  dendrogram = "none", # No dendrogram
+                  key = FALSE,
+                  Rowv = NA,           # Prevent further reordering by Rowv
+                  Colv = NA,           # Prevent further reordering by Colv
+                  margins = c(10, 10), density.info = "none", key.title = "", key.xlab= "", key.ylab = "", keysize = 2)
+
+gplots::heatmap.2(mat_fe[rev(season_names_abbreviated), season_names_abbreviated], 
                   trace = "none",
                   dendrogram = "none", # No dendrogram
                   key = FALSE,
@@ -113,14 +129,15 @@ gplots::heatmap.2(mat_fl[rev(season_order), season_order],
                   Colv = NA,           # Prevent further reordering by Colv
                   margins = c(10, 10), density.info = "none", key.title = "", key.xlab= "", key.ylab = "", keysize = 2)
 
-# So it is not the case that we see a seasonal signature--if that was true, then we'd expect the patterns to be more similar between seasons of the same type than between adjacent seasons. What we see is that one season basically follows from the last.
+gplots::heatmap.2(mat_fe[rev(season_order), season_order], 
+                  trace = "none",
+                  dendrogram = "none", # No dendrogram
+                  key = FALSE,
+                  Rowv = NA,           # Prevent further reordering by Rowv
+                  Colv = NA,           # Prevent further reordering by Colv
+                  margins = c(10, 10), density.info = "none", key.title = "", key.xlab= "", key.ylab = "", keysize = 2)
 
-## Okay now let's do a daily one
-mats_fe <- map(red_feeding_cat, ~as.matrix(.x$JSD) %>%
-                 provideDimnames(., sep = "", list(as.character(1:length(.x$JSD)),
-                                                   as.character(1:length(.x$JSD)))))
-### 1-day windows
-gplots::heatmap.2(mats_fe[[1]], trace = "none", Rowv = NA, Colv = NA, dendrogram = "none", density.info = "density", key.title = "", keysize = 2, key.xlab = "", key.ylab = "", main = "Co-feeding\n(1-day windows)")
+# So it is not the case that we see a seasonal signature--if that was true, then we'd expect the patterns to be more similar between seasons of the same type than between adjacent seasons. What we see is that one season basically follows from the last.
 
 ## How many individuals would we be left with if we restricted the seasonal analysis to only individuals that were present in all 9 seasons?
 tar_load(data_seasons)
@@ -129,3 +146,81 @@ indivs_seasons <- map(data_seasons, ~.x %>% ungroup() %>% pull(Nili_id) %>% uniq
 
 in_all <- na.omit(indivs_seasons)
 nrow(in_all) # only 20 individuals left!
+
+
+# 5-day window heatmap ----------------------------------------------------
+mats_fl <- map(red_flight_cat, ~as.matrix(.x$JSD) %>%
+                 provideDimnames(., sep = "", list(as.character(1:length(.x$JSD)),
+                                                   as.character(1:length(.x$JSD)))))
+library(viridis)
+colors <- viridis(nrow(mats_fl[[2]]), begin = 0, end = 1)
+df <- data.frame(ind = 1:length(colors), hex = colors)
+ggplot(df)+ # test plot
+  geom_rect(aes(xmin = ind, xmax = ind+1, ymin = 0, ymax = 1, fill = factor(ind)))+
+  scale_fill_manual(values = df$hex)+
+  theme_void()+
+  coord_flip()
+
+# --- Heatmap 2: Dendrogram rotated as close as possible to temporal order (as per your reprex) ---
+slices_fl <- 1:nrow(mats_fl[[2]])
+slices_fe <- 1:nrow(mats_fe[[2]])
+h2_fl <- gplots::heatmap.2(mats_fl[[2]], trace = "none",
+                  Rowv = dendextend::rotate(as.dendrogram(hclust(as.dist(mats_fl[[2]]))), 
+                                            order = slices_fl),
+                  Colv = dendextend::rotate(as.dendrogram(hclust(as.dist(mats_fl[[2]]))), 
+                                            order = slices_fl),
+                  dendrogram = "column", 
+                  key = TRUE, margins = c(10, 10), density.info = "none", key.title = "", key.xlab= "", key.ylab = "", keysize = 2)
+ord_h2fl <- h2_fl$rowInd
+df_h2_fl <- df[ord_h2fl,] %>% mutate(xmin = 1:nrow(.), xmax = (1:nrow(.))+1)
+ggplot(df_h2_fl)+
+  geom_rect(aes(xmin = xmin, xmax = xmax, ymin = 0, ymax = 1, fill = factor(ind, levels = ord_h2fl)))+
+  scale_fill_manual(values = df_h2_fl$hex)+
+  theme_void()+
+  coord_flip()
+
+h2_fe <- gplots::heatmap.2(mats_fe[[2]], trace = "none",
+                           Rowv = dendextend::rotate(as.dendrogram(hclust(as.dist(mats_fe[[2]]))), 
+                                                     order = slices_fe),
+                           Colv = dendextend::rotate(as.dendrogram(hclust(as.dist(mats_fe[[2]]))), 
+                                                     order = slices_fe),
+                           dendrogram = "column", 
+                           key = TRUE, margins = c(10, 10), density.info = "none", key.title = "", key.xlab= "", key.ylab = "", keysize = 2)
+ord_h2fe <- h2_fe$rowInd
+df_h2_fe <- df[ord_h2fe,] %>% mutate(xmin = 1:nrow(.), xmax = (1:nrow(.))+1)
+ggplot(df_h2_fe)+
+  geom_rect(aes(xmin = xmin, xmax = xmax, ymin = 0, ymax = 1, fill = factor(ind, levels = ord_h2fe)))+
+  scale_fill_manual(values = df_h2_fe$hex)+
+  theme_void()+
+  coord_flip()
+
+# --- Heatmap 3: No dendrogram, forced temporal order, matching reflection ---
+h3_fl <- gplots::heatmap.2(mats_fl[[2]][rev(slices_fl), slices_fl], 
+                  trace = "none",
+                  dendrogram = "none", # No dendrogram
+                  key = FALSE,
+                  Rowv = NA,           # Prevent further reordering by Rowv
+                  Colv = NA,           # Prevent further reordering by Colv
+                  margins = c(10, 10), density.info = "none", key.title = "", key.xlab= "", key.ylab = "", keysize = 2)
+ord_h3fl <- h3_fl$rowInd
+df_h3_fl <- df[ord_h3fl,] %>% mutate(xmin = 1:nrow(.), xmax = (1:nrow(.))+1)
+ggplot(df_h3_fl)+
+  geom_rect(aes(xmin = xmin, xmax = xmax, ymin = 0, ymax = 1, fill = factor(ind, levels = ord_h3fl)))+
+  scale_fill_manual(values = df_h3_fl$hex)+
+  theme_void()+
+  coord_flip()
+
+h3_fe <- gplots::heatmap.2(mats_fe[[2]][rev(slices_fe), slices_fe], 
+                           trace = "none",
+                           dendrogram = "none", # No dendrogram
+                           key = FALSE,
+                           Rowv = NA,           # Prevent further reordering by Rowv
+                           Colv = NA,           # Prevent further reordering by Colv
+                           margins = c(10, 10), density.info = "none", key.title = "", key.xlab= "", key.ylab = "", keysize = 2)
+ord_h3fe <- h3_fe$rowInd
+df_h3_fe <- df[ord_h3fe,] %>% mutate(xmin = 1:nrow(.), xmax = (1:nrow(.))+1)
+ggplot(df_h3_fe)+
+  geom_rect(aes(xmin = xmin, xmax = xmax, ymin = 0, ymax = 1, fill = factor(ind, levels = ord_h3fe)))+
+  scale_fill_manual(values = df_h3_fe$hex)+
+  theme_void()+
+  coord_flip()

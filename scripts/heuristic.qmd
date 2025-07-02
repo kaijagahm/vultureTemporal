@@ -96,6 +96,7 @@ measures %>%
 ```
 
 What would happen if we selected the same number of time slices for each one?
+
 ```{r}
 # select 5 slices from each, many times
 cvs_5 <- measures %>% 
@@ -113,17 +114,22 @@ reps100 <- map(1:100, ~{
 })
 
 reps <- data.table::rbindlist(reps100, idcol = "rep")
+bars <- reps %>% group_by(w_days, situ) %>%
+  summarize(mn = mean(cv), sd = sd(cv))
 
 reps %>%
-  ggplot(aes(x = w_days, y = cv, col = situ))+
-  geom_point()+
+  ggplot(aes(x = factor(w_days), y = cv, col = situ))+
+  geom_boxplot()
+
+reps %>%
+  ggplot()+
+  geom_jitter(alpha = 0.5, pch = 1, aes(x = w_days, y = cv, col = situ))+
   ylab("CV")+
   xlab("Time window (days)")+
   scale_color_manual(name = "Situation", values = situcolors[1:2])+
   theme(legend.position = "bottom",
         text = element_text(size = 16))
 ```
-
 
 Now let's plot the CV (sd/mean)
 
@@ -151,7 +157,7 @@ cvs %>%
         text = element_text(size = 16))
 
 cvs_fig <- cvs %>%
-  ggplot(aes(x = w_days, y = cv, col = situ))+
+  ggplot(aes(x = w_days, y = cv/(122/w), col = situ))+
   geom_line(linewidth = 2, alpha = 1)+
   #geom_point(size = 2, alpha = 0.7)+
   ylab("CV(Density)")+
