@@ -6,23 +6,20 @@ library(crew)
 # Set target options:
 tar_option_set(
   packages = c("tidyverse", "tibble", "purrr", "sf", "igraph", "muxViz", "Matrix", "dplyr", "vultureUtils"), # Packages that your targets need for their tasks.
-  controller = crew_controller_local(workers = 5)
+  controller = crew_controller_local(workers = 5) # able to run multiple workers at a time
 )
 
 # Run the R scripts in the R/ folder with your custom functions:
 tar_source()
-# tar_source("other_functions.R") # Source other scripts as needed.
 
-# Replace the target list below with your own:
 list(
   # Reducibility analysis
   ## General data ingest and prep
   tar_target(cols_to_remove, c("tag_id", "sensor_type_id", "acceleration_raw_x", "acceleration_raw_y", "acceleration_raw_z", "barometric_height", "battery_charge_percent", "battery_charging_current", "external_temperature", "gps_hdop", "gps_satellite_count", "gps_time_to_fix", "import_marked_outlier", "light_level", "magnetic_field_raw_x", "magnetic_field_raw_y", "magnetic_field_raw_z", "ornitela_transmission_protocol", "tag_voltage", "update_ts", "visible", "deployment_id", "event_id", "sensor_type", "tag_local_identifier", "location_long.1", "location_lat.1", "optional", "sensor", "earliest_date_born", "exact_date_of_birth", "group_id", "individual_id", "latest_date_born", "local_identifier", "marker_id", "mates", "mortality_date", "mortality_latitude", "mortality_type", "nick_name", "offspring", "parents", "ring_id", "siblings", "taxon_canonical_name", "taxon_detail", "number_of_events", "number_of_deployments")),
-  tar_target(tarstorepath, "~/Desktop/projects/MvmtSoc/_targets/"),
-  tar_target(alldata, targets::tar_read("downsampled_10min_forSocial", store = tarstorepath)),
+  tar_target(alldata, readRDS(here("data/fromMvmtSoc/downsampled_10min_forSocial.RDS"))),
   tar_target(season_names, map_chr(alldata, ~as.character(.x$seasonUnique[1]))),
   tar_target(alldata_prepped, map(alldata, ~prepare_data(.x, cols_to_remove = cols_to_remove))),
-  tar_target(roosts, targets::tar_read("roosts", store = tarstorepath)),
+  tar_target(roosts, readRDS(here("data/fromMvmtSoc/roosts.RDS"))),
   tar_target(roostPolygons_file, "data/raw/roosts50_kde95_cutOffRegion.kml", format = "file"),
   tar_target(roostPolygons, st_read(roostPolygons_file)),
   
