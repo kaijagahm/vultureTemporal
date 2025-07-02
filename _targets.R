@@ -19,14 +19,12 @@ list(
   tar_target(alldata, readRDS(here("data/fromMvmtSoc/downsampled_10min_forSocial.RDS"))),
   tar_target(season_names, map_chr(alldata, ~as.character(.x$seasonUnique[1]))),
   tar_target(alldata_prepped, map(alldata, ~prepare_data(.x, cols_to_remove = cols_to_remove))),
-  tar_target(roosts, readRDS(here("data/fromMvmtSoc/roosts.RDS"))),
   tar_target(roostPolygons_file, "data/raw/roosts50_kde95_cutOffRegion.kml", format = "file"),
   tar_target(roostPolygons, st_read(roostPolygons_file)),
   
   # Time window analysis
   # SEASONS -----------------------------------------------------------------
   tar_target(data_seasons, alldata_prepped), # just renaming these; unnecessary step
-  tar_target(roosts_seasons, roosts),
   ### prepare edges
   tar_target(flight_sris_seasons, get_flight_sris(data_seasons, roostPolygons)),
   tar_target(feeding_sris_seasons, get_feeding_sris(data_seasons, roostPolygons)),
