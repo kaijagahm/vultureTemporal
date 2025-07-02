@@ -4,3 +4,4 @@
 .Ruserdata
 data/
 movebankCredentials/
+analysis_scripts/simplify_shift_data.R
