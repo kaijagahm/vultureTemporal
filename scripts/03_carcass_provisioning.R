@@ -1,4 +1,4 @@
-# rough quantification of carcass frequency
+# rough quantification of carcass frequency--for reference in discussion
 library(targets)
 library(sf)
 library(mapview)
