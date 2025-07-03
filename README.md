@@ -1,6 +1,6 @@
 # Identifying timescales of change in vulture social networks
 ### Kaija Gahm, Elvira D'Bastiani, Nili Anglister, Gideon Vaadia, Marta Acácio, Orr Spiegel, and Noa Pinter-Wollman
-DOI: 10.5281/zenodo.15794961
+![image](https://github.com/user-attachments/assets/0733b185-68a2-415e-a4a1-502b7ee1de1d)
 
 Data can be found on Dryad, DOI: 10.5061/dryad.mpg4f4rcf. The roost polygons and GPS coordinates have been shifted by a random amount in space in order to protect this sensitive species.
 
