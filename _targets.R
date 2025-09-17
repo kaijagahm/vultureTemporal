@@ -5,8 +5,8 @@ library(crew)
 
 # Set target options:
 tar_option_set(
-  packages = c("tidyverse", "tibble", "purrr", "sf", "igraph", "muxViz", "Matrix", "dplyr", "vultureUtils"), # Packages that your targets need for their tasks.
-  controller = crew_controller_local(workers = 5) # able to run multiple workers at a time
+  packages = c("tidyverse", "tibble", "purrr", "sf", "igraph", "muxViz", "Matrix", "dplyr", "vultureUtils", "here"), # Packages that your targets need for their tasks.
+  controller = crew_controller_local(workers = 2) # able to run multiple workers at a time
 )
 
 # Run the R scripts in the R/ folder with your custom functions:
@@ -34,12 +34,23 @@ list(
   ### make graphs
   tar_target(graphs_flight_seasons, get_graphs(flight_sris_seasons, allvertices_seasons)),
   tar_target(graphs_feeding_seasons, get_graphs(feeding_sris_seasons, allvertices_seasons)),
+  ### Get a list of individuals that are present in all seasons
+  tar_target(indivs_in_all_seasons, filter(count(purrr::list_rbind(purrr::map(data_seasons, ~data.frame(Nili_id = unique(.x$Nili_id))), names_to = "season"), Nili_id), n == 9)$Nili_id),
+  tar_target(graphs_flight_seasons_subset, purrr::map(graphs_flight_seasons, ~igraph::subgraph(.x, vids = match(indivs_in_all_seasons, names(V(.x)))))),
+  tar_target(graphs_feeding_seasons_subset, purrr::map(graphs_feeding_seasons, ~igraph::subgraph(.x, vids = match(indivs_in_all_seasons, names(V(.x)))))),
+  
   ### Make tensors
   tar_target(tensor_flight_seasons, get_node_tensor(graphs_flight_seasons)),
   tar_target(tensor_feeding_seasons, get_node_tensor(graphs_feeding_seasons)),
+  
+  tar_target(tensor_flight_seasons_subset, get_node_tensor(graphs_flight_seasons_subset)),
+  tar_target(tensor_feeding_seasons_subset, get_node_tensor(graphs_feeding_seasons_subset)),
   ### get nlayers
   tar_target(nlayers_flight_seasons, length(tensor_flight_seasons)),
   tar_target(nlayers_feeding_seasons, length(tensor_feeding_seasons)),
+  
+  tar_target(nlayers_flight_seasons_subset, length(tensor_flight_seasons_subset)),
+  tar_target(nlayers_feeding_seasons_subset, length(tensor_feeding_seasons_subset)),
   ### get reducibility curves
   tar_target(red_flight_cat_seasons, get_reducibility(graphs_flight_seasons,
                                                       nlayers_flight_seasons,
@@ -49,9 +60,21 @@ list(
                                                        nlayers_feeding_seasons,
                                                        nnodes_seasons,
                                                        type = "Categorical")),
+  
+  tar_target(red_flight_cat_seasons_subset, get_reducibility(graphs_flight_seasons_subset,
+                                                      nlayers_flight_seasons_subset,
+                                                      length(indivs_in_all_seasons),
+                                                      type = "Categorical")),
+  tar_target(red_feeding_cat_seasons_subset, get_reducibility(graphs_feeding_seasons_subset,
+                                                       nlayers_feeding_seasons_subset,
+                                                       length(indivs_in_all_seasons),
+                                                       type = "Categorical")),
   tar_target(curves_seasons, purrr::list_rbind(list(
     get_reduc_curves_df_seasons(red_flight_cat_seasons, "categorical", "flight"),
     get_reduc_curves_df_seasons(red_feeding_cat_seasons, "categorical", "feeding")))),
+  tar_target(curves_seasons_subset, purrr::list_rbind(list(
+    get_reduc_curves_df_seasons(red_flight_cat_seasons_subset, "categorical", "flight"),
+    get_reduc_curves_df_seasons(red_feeding_cat_seasons_subset, "categorical", "feeding")))),
   
   # DAYS ---------------------------------------------------------------------
   ### select one season to work with (Summer 2023). Including only flight and feeding.
