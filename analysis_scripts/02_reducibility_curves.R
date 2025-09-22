@@ -3,6 +3,7 @@ library(tidyverse)
 library(dendextend)
 library(here)
 library(gplots)
+library(igraph)
 source("R/functions.R")
 tar_load(curves)
 tar_load(curves_seasons)
@@ -56,7 +57,7 @@ plt_curves_seasons_subset <- curves_seasons_subset %>%
   theme_classic()+
   theme(panel.grid.minor = element_blank(),
         text = element_text( size = 14))+
-  ggtitle("Seasons")+
+  ggtitle("Seasons (20 indivs)")+
   guides(color = guide_legend(override.aes = 
                                 list(linewidth = 1, size = 3)))
 plt_curves_seasons_subset
@@ -305,3 +306,26 @@ ggplot(df_h3_fe)+
   scale_fill_manual(values = df_h3_fe$hex)+
   theme_void()+
   coord_flip()
+
+
+# Examine the graphs ------------------------------------------------------
+tar_load(graphs_flight_seasons)
+tar_load(graphs_flight_seasons_subset)
+g <- graphs_flight_seasons_subset[[1]]
+g <- delete_edges(g, edges = E(g)[E(g)$weight==0])
+test = "mytitle"
+plot(g,  main = test)
+
+for(i in 1:length(season_names)){
+  g <- graphs_flight_seasons_subset[[i]]
+  g <- delete_edges(g, edges = E(g)[E(g)$weight == 0])
+  title = paste(season_names[i], "(subset)")
+  print(plot(g, main = title))
+}
+
+for(i in 1:length(season_names)){
+  g <- graphs_flight_seasons[[i]]
+  g <- delete_edges(g, edges = E(g)[E(g)$weight == 0])
+  title = paste(season_names[i], "(full)")
+  print(plot(g, main = title))
+}
