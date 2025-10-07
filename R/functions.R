@@ -469,6 +469,6 @@ get_combined <- function(data, obs, perm){
 }
 
 nonzero <- function(g){
-  gg <- delete_edges(g, which(E(g)$weight==0))
+  gg <- igraph::delete_edges(g, which(E(g)$weight==0))
   return(gg)
 }
