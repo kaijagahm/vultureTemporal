@@ -112,10 +112,11 @@ season_names_abbreviated <- str_replace(season_names_abbreviated, "breeding", "B
 season_names_abbreviated <- str_replace(season_names_abbreviated, "fall", "F")
 season_names_abbreviated <- str_replace(season_names_abbreviated, "summer", "S")
 season_names_abbreviated <- str_remove(season_names_abbreviated, "20")
+season_names_clarified <- c("20_pre", "21_br", "21_post", "21_pre", "22_br", "22_post", "22_pre", "23_br", "23_post")
 colnames(mat_fl) <- season_names_abbreviated
 rownames(mat_fl) <- season_names_abbreviated
-colnames(mat_fl_subset) <- season_names_abbreviated
-rownames(mat_fl_subset) <- season_names_abbreviated
+colnames(mat_fl_subset) <- season_names_clarified
+rownames(mat_fl_subset) <- season_names_clarified
 colnames(mat_fe) <- season_names_abbreviated
 rownames(mat_fe) <- season_names_abbreviated
 
