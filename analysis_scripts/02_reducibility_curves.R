@@ -3,6 +3,7 @@ library(tidyverse)
 library(dendextend)
 library(here)
 library(gplots)
+library(igraph)
 source("R/functions.R")
 tar_load(curves)
 tar_load(curves_seasons)
@@ -56,7 +57,7 @@ plt_curves_seasons_subset <- curves_seasons_subset %>%
   theme_classic()+
   theme(panel.grid.minor = element_blank(),
         text = element_text( size = 14))+
-  ggtitle("Seasons")+
+  ggtitle("Seasons (20 indivs)")+
   guides(color = guide_legend(override.aes = 
                                 list(linewidth = 1, size = 3)))
 plt_curves_seasons_subset
@@ -111,10 +112,11 @@ season_names_abbreviated <- str_replace(season_names_abbreviated, "breeding", "B
 season_names_abbreviated <- str_replace(season_names_abbreviated, "fall", "F")
 season_names_abbreviated <- str_replace(season_names_abbreviated, "summer", "S")
 season_names_abbreviated <- str_remove(season_names_abbreviated, "20")
+season_names_clarified <- c("20_pre", "21_br", "21_post", "21_pre", "22_br", "22_post", "22_pre", "23_br", "23_post")
 colnames(mat_fl) <- season_names_abbreviated
 rownames(mat_fl) <- season_names_abbreviated
-colnames(mat_fl_subset) <- season_names_abbreviated
-rownames(mat_fl_subset) <- season_names_abbreviated
+colnames(mat_fl_subset) <- season_names_clarified
+rownames(mat_fl_subset) <- season_names_clarified
 colnames(mat_fe) <- season_names_abbreviated
 rownames(mat_fe) <- season_names_abbreviated
 
@@ -305,3 +307,26 @@ ggplot(df_h3_fe)+
   scale_fill_manual(values = df_h3_fe$hex)+
   theme_void()+
   coord_flip()
+
+
+# Examine the graphs ------------------------------------------------------
+tar_load(graphs_flight_seasons)
+tar_load(graphs_flight_seasons_subset)
+g <- graphs_flight_seasons_subset[[1]]
+g <- delete_edges(g, edges = E(g)[E(g)$weight==0])
+test = "mytitle"
+plot(g,  main = test)
+
+for(i in 1:length(season_names)){
+  g <- graphs_flight_seasons_subset[[i]]
+  g <- delete_edges(g, edges = E(g)[E(g)$weight == 0])
+  title = paste(season_names[i], "(subset)")
+  print(plot(g, main = title))
+}
+
+for(i in 1:length(season_names)){
+  g <- graphs_flight_seasons[[i]]
+  g <- delete_edges(g, edges = E(g)[E(g)$weight == 0])
+  title = paste(season_names[i], "(full)")
+  print(plot(g, main = title))
+}

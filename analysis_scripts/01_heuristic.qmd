@@ -1,7 +1,7 @@
 ---
 title: "Heuristic"
 format: html
-editor: visual
+editor: source
 ---
 
 ```{r message = F}
@@ -29,11 +29,6 @@ tar_load(graphs_feeding)
 ```
 
 ```{r}
-nonzero <- function(g){
-  gg <- delete_edges(g, which(E(g)$weight==0))
-  return(gg)
-}
-
 fl_density <- map(graphs_flight_heuristic, ~map_dbl(.x, ~igraph::edge_density(nonzero(.x))))
 fe_density <- map(graphs_feeding_heuristic, ~map_dbl(.x, ~igraph::edge_density(nonzero(.x))))
 
