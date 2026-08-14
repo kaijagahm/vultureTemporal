@@ -1,8 +1,16 @@
 # Identifying timescales of change in vulture social networks
+
+**Institution:** UCLA
+
+**Lab:** Pinter-Wollman Lab
+
+**Publication:** Gahm, Kaija, Elvira D’Bastiani, Nili Anglister, et al. 2026. “Selection of Timescales to Study Social Network Temporal Dynamics in Vultures.” Animal Behaviour 232 (February): 123442. [https://doi.org/10.1016/j.anbehav.2025.123442](https://doi.org/10.1016/j.anbehav.2025.123442).
+
+
 ### Kaija Gahm, Elvira D'Bastiani, Nili Anglister, Gideon Vaadia, Marta Acácio, Orr Spiegel, and Noa Pinter-Wollman
 [![DOI](https://zenodo.org/badge/767116894.svg)](https://doi.org/10.5281/zenodo.15794960)
 
-Data can be found on Dryad, DOI: 10.5061/dryad.mpg4f4rcf. The roost polygons and GPS coordinates have been shifted by a random amount in space in order to protect this sensitive species.
+Data can be found on Dryad, DOI: [10.5061/dryad.mpg4f4rcf](10.5061/dryad.mpg4f4rcf). The roost polygons and GPS coordinates have been shifted by a random amount in space in order to protect this sensitive species.
 
 The GPS data are presented as separate CSV files--they need to be loaded into R and then bound together into a list, in numbered order, in order to replicate `alldata`. The may also need to be transformed back into an sf object (CRS 32636).
 
